@@ -279,19 +279,21 @@ export function useProviderActions(
           toast.success(message, {
             closeButton: true,
             // ccshift：Claude Desktop 换了配置要重启，给个按钮替客户重启
-            ...(activeApp === "claude-desktop" && {
-              duration: 10000,
-              action: {
-                label: t("setup.done.restartDesktop"),
-                onClick: () => {
-                  void providersApi.restartClaudeDesktop().catch((error) =>
-                    toast.error(t("setup.done.desktopRestartFailed"), {
-                      description: extractErrorMessage(error) || undefined,
-                    }),
-                  );
+            // 路由模式下换一家不改 Desktop 的配置文件，不用重启，不给按钮
+            ...(activeApp === "claude-desktop" &&
+              !result?.route && {
+                duration: 10000,
+                action: {
+                  label: t("setup.done.restartDesktop"),
+                  onClick: () => {
+                    void providersApi.restartClaudeDesktop().catch((error) =>
+                      toast.error(t("setup.done.desktopRestartFailed"), {
+                        description: extractErrorMessage(error) || undefined,
+                      }),
+                    );
+                  },
                 },
-              },
-            }),
+              }),
           });
         }
       } catch {

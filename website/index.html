@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ccshift · Claude Code / Codex 一键配置工具</title>
+<meta name="description" content="ccshift：小白也能用的 Claude Code、Codex 一键安装与配置工具。自动装好环境，填入 API 地址和 Key 一键接入，支持 Windows 和 macOS。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f97315'/%3E%3Cpath d='M9 12h11l-3-3M23 20H12l3 3' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --brand: #f97315;
+    --brand-dark: #e0620a;
+    --brand-soft: #fff1e6;
+    --ink: #1c1917;
+    --ink-2: #57534e;
+    --ink-3: #8a837d;
+    --line: #ece7e2;
+    --bg: #fbfaf8;
+    --card: #ffffff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* 顶栏 */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(251, 250, 248, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; height: 60px; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; text-decoration: none; }
+  .brand-mark { width: 30px; height: 30px; }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; font-size: 15px; }
+  .nav-links a { text-decoration: none; color: var(--ink-2); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav .btn { padding: 8px 16px; font-size: 14px; }
+
+  /* 按钮 */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 26px; border-radius: 10px;
+    font-size: 16px; font-weight: 600; text-decoration: none;
+    border: 1px solid transparent; cursor: pointer;
+    transition: background .15s, transform .1s, border-color .15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-ghost { background: var(--card); border-color: var(--line); color: var(--ink); }
+  .btn-ghost:hover { border-color: #d6cfc8; }
+  .btn svg { width: 20px; height: 20px; flex: none; }
+
+  /* 首屏 */
+  .hero { padding-top: 88px; padding-bottom: 72px; text-align: center; }
+  .badge {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand-dark);
+    font-size: 13px; font-weight: 600; margin-bottom: 20px;
+  }
+  .hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.15; margin: 0 0 18px; letter-spacing: -0.02em; }
+  .hero h1 em { font-style: normal; color: var(--brand); }
+  .hero p.lead { font-size: 19px; color: var(--ink-2); max-width: 640px; margin: 0 auto 36px; }
+  .cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+  .meta { margin-top: 16px; font-size: 14px; color: var(--ink-3); }
+  .meta a { color: var(--ink-2); }
+
+  /* 区块 */
+  section { padding: 72px 0; }
+  .section-title { text-align: center; margin-bottom: 44px; }
+  .section-title h2 { font-size: 32px; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .section-title p { margin: 0; color: var(--ink-2); font-size: 17px; }
+  .alt { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+  /* 三步 */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; position: relative; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--brand); color: #fff; font-weight: 700; margin-bottom: 16px;
+  }
+  .step h3 { margin: 0 0 8px; font-size: 19px; }
+  .step p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+  /* 功能 */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .feature { padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg); }
+  .feature .icon {
+    width: 42px; height: 42px; border-radius: 10px; background: var(--brand-soft);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  }
+  .feature .icon svg { width: 22px; height: 22px; stroke: var(--brand-dark); }
+  .feature h3 { margin: 0 0 6px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+  /* 下载 */
+  .downloads { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 820px; margin: 0 auto; }
+  .dl-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: flex; flex-direction: column; }
+  .dl-card.current { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .dl-card h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 21px; }
+  .dl-card h3 svg { width: 26px; height: 26px; }
+  .dl-card .req { color: var(--ink-3); font-size: 14px; margin: 0 0 20px; }
+  .dl-card .btn { justify-content: center; margin-top: auto; }
+  .dl-card .alt-link { text-align: center; font-size: 14px; color: var(--ink-3); margin-top: 12px; }
+  .dl-card .alt-link a { color: var(--ink-2); }
+  .size { font-weight: 400; opacity: .85; font-size: 14px; }
+
+  /* 提示框 */
+  .notice {
+    max-width: 820px; margin: 28px auto 0; padding: 20px 24px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius);
+    font-size: 15px; color: var(--ink-2);
+  }
+  .notice strong { color: var(--ink); }
+  .notice ol { margin: 8px 0 0; padding-left: 22px; }
+  .notice + .notice { margin-top: 14px; }
+  .cmd {
+    display: flex; align-items: center; gap: 10px; margin: 10px 0 4px;
+    background: #1c1917; color: #f5f5f4; border-radius: 10px; padding: 12px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px;
+  }
+  .cmd code { flex: 1; overflow-x: auto; white-space: nowrap; }
+  .copy {
+    flex: none; background: #44403c; color: #fff; border: 0; border-radius: 7px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .copy:hover { background: #57534e; }
+
+  /* 常见问题 */
+  .faq { max-width: 820px; margin: 0 auto; }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+  summary { cursor: pointer; padding: 18px 22px; font-weight: 600; font-size: 16px; list-style: none; display: flex; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; margin-left: auto; font-size: 22px; color: var(--ink-3); font-weight: 400; }
+  details[open] summary::after { content: "−"; }
+  details .answer { padding: 0 22px 20px; color: var(--ink-2); font-size: 15px; }
+  details .answer p { margin: 0 0 8px; }
+
+  footer { padding: 36px 0; text-align: center; color: var(--ink-3); font-size: 14px; }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 820px) {
+    .steps, .features, .downloads { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+    .nav .btn { margin-left: auto; }
+    .hero { padding-top: 56px; padding-bottom: 48px; }
+    section { padding: 52px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#f97315"/><path d="M9 12h11l-3-3M23 20H12l3 3" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ccshift
+    </a>
+    <nav class="nav-links">
+      <a href="#steps">使用步骤</a>
+      <a href="#features">功能</a>
+      <a href="#download">下载</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="btn btn-primary" href="#download">免费下载</a>
+  </div>
+</header>
+
+<main>
+  <div class="hero wrap">
+    <span class="badge">Windows · macOS（Apple 芯片 / Intel）</span>
+    <h1>Claude Code 和 Codex<br /><em>一键装好，一键接入</em></h1>
+    <p class="lead">不懂命令行也能用。自动安装运行环境，填入 API 地址和 Key，点一下就同时配好 Claude Code、Codex 和 Claude 桌面版。</p>
+    <div class="cta">
+      <a class="btn btn-primary" id="hero-download" href="#download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+        <span id="hero-download-label">下载 ccshift</span>
+      </a>
+      <a class="btn btn-ghost" href="#steps">看看怎么用</a>
+    </div>
+    <p class="meta" id="hero-meta">免费 · 不需要管理员权限</p>
+  </div>
+
+  <section class="alt" id="steps">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>三步开始使用</h2>
+        <p>新电脑什么都没装也没关系</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <h3>下载安装 ccshift</h3>
+          <p>根据你的电脑选择 Windows 或 Mac 版本，双击安装。</p>
+        </div>
+        <div class="step">
+          <h3>一键全部安装</h3>
+          <p>打开后点「一键全部安装」，自动装好 Node.js、Git、Claude Code 和 Codex，国内网络也很快。</p>
+        </div>
+        <div class="step">
+          <h3>填入 API，一键配置</h3>
+          <p>粘贴服务商给你的 API 地址和 Key，测试连接后点「一键配置」，打开终端输入 <code>claude</code> 或 <code>codex</code> 就能用。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>为小白设计</h2>
+        <p>把容易出错的地方都替你处理好了</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg></div>
+          <h3>环境自动安装</h3>
+          <p>Node.js、Git 从国内镜像下载，装在用户目录，不需要管理员权限，不用折腾命令行。</p>
+        </div>
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14l-2 2a3 3 0 01-4-4l3-3a3 3 0 014 0M14 10l2-2a3 3 0 014 4l-3 3a3 3 0 01-4 0"/></svg></div>
+          <h3>任意 API 一键接入</h3>
+          <p>填地址和 Key 即可，地址格式自动修正，一次同时写入 Claude Code、Codex 和 Claude 桌面版。</p>
+        </div>
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>常见问题自动修复</h3>
+          <p>Node 版本过低、PowerShell 禁止运行脚本、旧环境变量冲突、npm 权限问题，检测到就能一键修复。</p>
+        </div>
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg></div>
+          <h3>多个 API 随时切换</h3>
+          <p>保存多个服务商，点一下就切换，托盘菜单也能直接切。</p>
+        </div>
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h3>插件同步生效</h3>
+          <p>VS Code、Cursor、JetBrains 里的 Claude Code 和 Codex 插件读同一份配置，切换后重开即可。</p>
+        </div>
+        <div class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></svg></div>
+          <h3>随时一键还原</h3>
+          <p>不想用了可以一键恢复原来的配置，或彻底清理 ccshift 装的东西，你自己装的不会被动。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="download">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>下载 ccshift</h2>
+        <p id="download-version">最新版本</p>
+      </div>
+      <div class="downloads">
+        <div class="dl-card" id="card-windows">
+          <h3><svg viewBox="0 0 24 24" fill="#0078d4"><path d="M3 5.5l7.5-1v7H3zM11.5 4.4L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z"/></svg>Windows</h3>
+          <p class="req">Windows 10 / 11（64 位）</p>
+          <a class="btn btn-primary" id="dl-windows" href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+            下载 Windows 版 <span class="size" id="size-windows"></span>
+          </a>
+          <p class="alt-link">安装包格式：.msi</p>
+        </div>
+        <div class="dl-card" id="card-mac">
+          <h3><svg viewBox="0 0 24 24" fill="#1c1917"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.8-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8c1.3 0 2.1-1.2 2.9-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.4-1-2.4-3.9zM14 5.5c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4z"/></svg>macOS</h3>
+          <p class="req">macOS 12 及以上 · Apple 芯片和 Intel 通用</p>
+          <a class="btn btn-primary" id="dl-mac" href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+            下载 Mac 版 <span class="size" id="size-mac"></span>
+          </a>
+          <p class="alt-link">DMG 打不开？<a id="dl-mac-zip" href="#">下载 zip 版</a></p>
+        </div>
+      </div>
+
+      <div class="notice">
+        <strong>Windows 安装时提示「Windows 已保护你的电脑」？</strong>
+        <ol>
+          <li>点击提示里的「更多信息」</li>
+          <li>点击「仍要运行」</li>
+        </ol>
+      </div>
+      <div class="notice" id="mac-notice">
+        <strong>Mac 第一次打开提示「已损坏」或「无法验证开发者」？</strong>
+        <ol>
+          <li>把 ccshift 拖进「应用程序」文件夹</li>
+          <li>打开「终端」（在「启动台 → 其他」里，或按 ⌘+空格 搜索"终端"），粘贴下面这行并回车：</li>
+        </ol>
+        <div class="cmd"><code id="mac-cmd">xattr -cr /Applications/ccshift.app</code><button class="copy" data-copy="mac-cmd">复制</button></div>
+        <span>然后重新打开 ccshift 即可，以后不会再提示。</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>常见问题</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>需要提前安装 Node.js、Git 吗？</summary>
+          <div class="answer"><p>不需要。打开 ccshift 后点「一键全部安装」，缺什么会自动装什么。已经装过的会自动识别，不会重复安装；Node.js 版本太旧会提示一键升级。</p></div>
+        </details>
+        <details>
+          <summary>需要管理员权限吗？</summary>
+          <div class="answer"><p>一般不需要，所有东西都装在你的用户目录里。只有一种情况例外：电脑上原来装了旧版 Node.js（装在系统目录），升级时 Windows 会弹一次"是否允许更改"，点「是」即可。</p></div>
+        </details>
+        <details>
+          <summary>配置完了，但 Claude Code / Codex 还是用的旧配置？</summary>
+          <div class="answer">
+            <p>已经打开的终端、VS Code、Cursor 读不到新配置，请把它们完全关掉再重新打开。</p>
+            <p>如果还不行，回到 ccshift 的「快速配置」看看有没有红色的「环境变量冲突」，点「一键清除」即可（原值会自动备份）。</p>
+          </div>
+        </details>
+        <details>
+          <summary>支持 Claude 桌面版和 Codex 桌面版吗？</summary>
+          <div class="answer">
+            <p>支持。Claude 桌面版在「快速配置」里勾选即可，配置后会自动重启生效，不用在桌面版里做任何设置（仅支持 Anthropic 格式的接口）。</p>
+            <p>Codex 桌面版和命令行版读的是同一份配置，配好 Codex 就自动生效。</p>
+          </div>
+        </details>
+        <details>
+          <summary>VS Code / Cursor 里的插件能用吗？</summary>
+          <div class="answer"><p>能。Claude Code 插件和 Codex 插件读的就是 ccshift 写入的配置。插件需要你自己在扩展市场里安装，配置或切换后重启编辑器即可。插件弹出登录提示时不用登录。</p></div>
+        </details>
+        <details>
+          <summary>不想用了怎么恢复？</summary>
+          <div class="answer">
+            <p>在 ccshift 的「设置 → 通用 → 一键还原」里可以选择：</p>
+            <p>· <strong>只还原配置</strong>：Claude Code、Codex 恢复成使用 ccshift 之前的样子。<br />· <strong>彻底清理</strong>：再卸载 Claude Code、Codex，并删除 ccshift 安装的 Node.js 和 Git。你自己原来装的不会被删除。</p>
+            <p>建议先还原，再卸载 ccshift。</p>
+          </div>
+        </details>
+        <details>
+          <summary>我的 API Key 安全吗？</summary>
+          <div class="answer"><p>Key 只保存在你自己的电脑上，写进 Claude Code 和 Codex 的本地配置文件，ccshift 不会上传到任何服务器。</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">© <span id="year">2026</span> ccshift</div>
+</footer>
+
+<script>
+  // 下载地址从 GitHub 最新发布读取：发新版后官网自动指向新安装包，不用改网页。
+  // 想换成自己的下载服务器（国内更快），在 DOWNLOAD_OVERRIDE 里填完整地址即可。
+  const REPO = "GetGoAPI/ccshift";
+  const RELEASES_PAGE = "https://github.com/" + REPO + "/releases/latest";
+  const DOWNLOAD_OVERRIDE = {
+    windows: "",
+    mac: "",
+    macZip: "",
+  };
+
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const isWindows = /Win/.test(navigator.platform || navigator.userAgent);
+
+  function setLink(id, url) {
+    const el = document.getElementById(id);
+    if (el) el.href = url || RELEASES_PAGE;
+  }
+
+  function sizeText(bytes) {
+    return bytes ? "（" + (bytes / 1048576).toFixed(0) + " MB）" : "";
+  }
+
+  const links = { windows: RELEASES_PAGE, mac: RELEASES_PAGE, macZip: RELEASES_PAGE };
+
+  function applyLinks() {
+    setLink("dl-windows", DOWNLOAD_OVERRIDE.windows || links.windows);
+    setLink("dl-mac", DOWNLOAD_OVERRIDE.mac || links.mac);
+    setLink("dl-mac-zip", DOWNLOAD_OVERRIDE.macZip || links.macZip);
+    // 首屏按钮直接下载当前系统的版本
+    const hero = document.getElementById("hero-download");
+    const label = document.getElementById("hero-download-label");
+    if (isWindows) {
+      hero.href = DOWNLOAD_OVERRIDE.windows || links.windows;
+      label.textContent = "下载 Windows 版";
+      document.getElementById("card-windows").classList.add("current");
+    } else if (isMac) {
+      hero.href = DOWNLOAD_OVERRIDE.mac || links.mac;
+      label.textContent = "下载 Mac 版";
+      document.getElementById("card-mac").classList.add("current");
+    }
+  }
+
+  applyLinks();
+
+  fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
+    .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+    .then((release) => {
+      const assets = release.assets || [];
+      const find = (suffix) => assets.find((a) => a.name.endsWith(suffix));
+      const win = find("-Windows-x64.msi");
+      const dmg = find("-macOS-universal.dmg");
+      const zip = find("-macOS-universal.zip");
+      if (win) links.windows = win.browser_download_url;
+      if (dmg) links.mac = dmg.browser_download_url;
+      if (zip) links.macZip = zip.browser_download_url;
+      applyLinks();
+      if (win) document.getElementById("size-windows").textContent = sizeText(win.size);
+      if (dmg) document.getElementById("size-mac").textContent = sizeText(dmg.size);
+      const version = (release.tag_name || "").replace(/^v/, "");
+      const date = (release.published_at || "").slice(0, 10);
+      if (version) {
+        document.getElementById("download-version").textContent =
+          "最新版本 v" + version + (date ? " · " + date + " 发布" : "");
+        document.getElementById("hero-meta").textContent =
+          "免费 · 不需要管理员权限 · 最新版本 v" + version;
+      }
+    })
+    .catch(() => {
+      // 读不到（网络或频率限制）时按钮都指向发布页，仍然能下载
+    });
+
+  document.querySelectorAll(".copy").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const text = document.getElementById(btn.dataset.copy).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = "已复制";
+        setTimeout(() => (btn.textContent = "复制"), 1500);
+      });
+    });
+  });
+
+  document.getElementById("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

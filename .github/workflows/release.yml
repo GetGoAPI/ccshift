@@ -117,25 +117,39 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
+          # 出错时把原因写成注解：不登录 GitHub 也能在运行页面上看到
+          fail() { echo "::error title=macOS packaging::$*"; exit 1; }
           version=$(node -p 'require("./src-tauri/tauri.conf.json").version')
-          app=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" -type d | head -1)
-          test -n "$app"
-          # 确认确实是两种芯片都有
-          lipo -info "$app/Contents/MacOS/"*
+          app=$(find src-tauri/target -type d -name "*.app" -path "*/bundle/macos/*" -prune 2>/dev/null | head -1 || true)
+          if [ -z "$app" ]; then
+            fail "No .app found. Bundles: $(find src-tauri/target -maxdepth 5 -type d -name bundle 2>/dev/null | xargs echo)"
+          fi
+          echo "App: $app"
+          # 确认两种芯片都在
+          info=$(lipo -info "$app/Contents/MacOS/"* 2>&1 || true)
+          echo "$info"
+          case "$info" in *x86_64*arm64*|*arm64*x86_64*) ;; *) fail "Not a universal binary: $info" ;; esac
           mkdir -p release-assets
 
-          # DMG：打开后把 ccshift 拖进「应用程序」
+          # zip 先做：DMG 失败时至少还有它
+          ditto -c -k --sequesterRsrc --keepParent "$app" "release-assets/ccshift-$version-macOS-universal.zip"
+
+          # DMG：打开后把 ccshift 拖进「应用程序」。GitHub 的 Mac 机器上 hdiutil
+          # 偶尔报 "Resource busy"，重试几次
           stage="$RUNNER_TEMP/dmg"
           rm -rf "$stage" && mkdir -p "$stage"
           ditto "$app" "$stage/$(basename "$app")"
           ln -s /Applications "$stage/Applications"
-          hdiutil create -volname ccshift -srcfolder "$stage" -ov -format UDZO \
-            "release-assets/ccshift-$version-macOS-universal.dmg"
-
-          # zip：DMG 打不开时的备用下载
-          ditto -c -k --sequesterRsrc --keepParent "$app" \
-            "release-assets/ccshift-$version-macOS-universal.zip"
+          dmg="release-assets/ccshift-$version-macOS-universal.dmg"
+          for attempt in 1 2 3 4 5; do
+            if out=$(hdiutil create -volname ccshift -srcfolder "$stage" -ov -format UDZO "$dmg" 2>&1); then
+              echo "$out"; break
+            fi
+            echo "hdiutil attempt $attempt failed: $out"
+            [ "$attempt" = 5 ] && echo "::warning title=DMG::DMG creation failed, only the zip is published: $out"
+            sleep $((attempt * 5))
+          done
           ls -lh release-assets
 
       - name: Upload artifacts
@@ -148,7 +162,8 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 一个平台失败也发布另一个平台的安装包
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts

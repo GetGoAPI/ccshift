@@ -5214,7 +5214,7 @@
       "submit": "一键配置",
       "saveFailed": "写入配置失败",
       "desktopMissing": "没有检测到 Claude 桌面版，安装后再回来勾选",
-      "desktopHint": "Claude 桌面版只支持 Anthropic 格式的接口（和 Claude Code 同一个地址），模型菜单里的 Sonnet / Opus / Haiku 会原名发给你的 API。",
+      "desktopHint": "Claude 桌面版只支持 Anthropic 格式的接口（和 Claude Code 同一个地址）。配置后会自动重启桌面版，不需要在桌面版里做任何设置。",
       "conflictWarning": "检测到系统环境变量 {{names}}，它们会覆盖这次写入的配置，导致用的还是旧 Key 或旧地址。建议清除（原值会自动备份）。",
       "conflictIgnore": "仍然继续",
       "conflictClear": "清除并继续"
@@ -5228,8 +5228,11 @@
       "openTerminal": "打开终端",
       "terminalFailed": "打开终端失败",
       "again": "再配置一个",
-      "desktopHint": "完全退出并重新打开 Claude 桌面版后生效",
-      "restartHint": "已经打开的终端、VS Code / Cursor 读不到新配置，请关掉后重新打开。"
+      "desktopHint": "已自动重启 Claude 桌面版，打开就能用",
+      "restartHint": "已经打开的终端、VS Code / Cursor 读不到新配置，请关掉后重新打开。",
+      "restartDesktop": "重启 Claude 桌面版",
+      "desktopRestarted": "已重启 Claude 桌面版",
+      "desktopRestartFailed": "没能自动重启 Claude 桌面版，请在托盘里完全退出后重新打开"
     },
     "advanced": {
       "block": "界面模式",

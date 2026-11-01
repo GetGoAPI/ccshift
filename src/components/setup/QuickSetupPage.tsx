@@ -204,6 +204,15 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
       }
       await providersApi.updateTrayMenu().catch(() => undefined);
       markSetupDone();
+      // Claude Desktop 只在启动时读配置：写完直接替客户重启，不用客户自己去托盘里退出
+      if (done.some((item) => item.app === "claude-desktop")) {
+        await providersApi.restartClaudeDesktop().catch((error) => {
+          toast.warning(t("setup.done.desktopRestartFailed"), {
+            description: extractErrorMessage(error) || undefined,
+            closeButton: true,
+          });
+        });
+      }
       setConfigured(done);
       toast.success(t("setup.done.toast"));
     } catch (error) {
@@ -552,6 +561,21 @@ function DoneCard({
   onAgain: () => void;
 }) {
   const { t } = useTranslation();
+  const [restarting, setRestarting] = useState(false);
+  const restartDesktop = async () => {
+    setRestarting(true);
+    try {
+      await providersApi.restartClaudeDesktop();
+      toast.success(t("setup.done.desktopRestarted"));
+    } catch (error) {
+      toast.error(t("setup.done.desktopRestartFailed"), {
+        description: extractErrorMessage(error) || undefined,
+      });
+    } finally {
+      setRestarting(false);
+    }
+  };
+
   const openTerminal = async (app: SetupApp, providerId: string) => {
     try {
       await providersApi.openTerminal(providerId, app);
@@ -587,6 +611,17 @@ function DoneCard({
           >
             {t("setup.done.viewProviders")}
           </Button>
+          {app === "claude-desktop" && (
+            <Button
+              size="compact"
+              variant="neutral"
+              disabled={restarting}
+              onClick={() => void restartDesktop()}
+            >
+              {restarting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {t("setup.done.restartDesktop")}
+            </Button>
+          )}
           {app !== "claude-desktop" && (
             <Button
               size="compact"

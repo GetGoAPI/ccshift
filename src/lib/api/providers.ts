@@ -176,6 +176,11 @@ export const providersApi = {
     return await invoke("ensure_grokbuild_official_provider");
   },
 
+  /** 完全退出并重新打开 Claude Desktop：它只在启动时读配置（ccshift） */
+  async restartClaudeDesktop(): Promise<void> {
+    await invoke("restart_claude_desktop");
+  },
+
   async getClaudeDesktopStatus(): Promise<ClaudeDesktopStatus> {
     return await invoke("get_claude_desktop_status");
   },

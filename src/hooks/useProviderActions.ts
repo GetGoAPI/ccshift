@@ -278,6 +278,20 @@ export function useProviderActions(
             : t(messageKey, { defaultValue: defaultMessage });
           toast.success(message, {
             closeButton: true,
+            // ccshift：Claude Desktop 换了配置要重启，给个按钮替客户重启
+            ...(activeApp === "claude-desktop" && {
+              duration: 10000,
+              action: {
+                label: t("setup.done.restartDesktop"),
+                onClick: () => {
+                  void providersApi.restartClaudeDesktop().catch((error) =>
+                    toast.error(t("setup.done.desktopRestartFailed"), {
+                      description: extractErrorMessage(error) || undefined,
+                    }),
+                  );
+                },
+              },
+            }),
           });
         }
       } catch {

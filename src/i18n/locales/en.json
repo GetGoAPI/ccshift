@@ -5214,7 +5214,7 @@
       "submit": "Set up",
       "saveFailed": "Failed to write configuration",
       "desktopMissing": "Claude Desktop is not installed. Install it, then come back.",
-      "desktopHint": "Claude Desktop only supports Anthropic-format APIs (same URL as Claude Code). Sonnet / Opus / Haiku are sent to your API by their original model names.",
+      "desktopHint": "Claude Desktop only supports Anthropic-format APIs (same URL as Claude Code). It restarts automatically after setup — nothing to configure inside Claude Desktop.",
       "conflictWarning": "Environment variables {{names}} are set and will override this configuration, so the old key or URL would still be used. Clearing them is recommended (values are backed up).",
       "conflictIgnore": "Continue anyway",
       "conflictClear": "Clear and continue"
@@ -5228,8 +5228,11 @@
       "openTerminal": "Open terminal",
       "terminalFailed": "Failed to open terminal",
       "again": "Set up another",
-      "desktopHint": "Quit Claude Desktop completely and reopen it",
-      "restartHint": "Terminals and VS Code / Cursor windows that are already open won't see the new configuration. Close and reopen them."
+      "desktopHint": "Claude Desktop was restarted and is ready to use",
+      "restartHint": "Terminals and VS Code / Cursor windows that are already open won't see the new configuration. Close and reopen them.",
+      "restartDesktop": "Restart Claude Desktop",
+      "desktopRestarted": "Claude Desktop restarted",
+      "desktopRestartFailed": "Couldn't restart Claude Desktop automatically. Quit it from the tray and reopen it."
     },
     "advanced": {
       "block": "Interface",

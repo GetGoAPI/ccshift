@@ -472,6 +472,67 @@ pub async fn cleanup_dev_environment() -> Result<(), String> {
     .map_err(|e| format!("environment cleanup task join error: {e}"))?
 }
 
+// ─── 重启 Claude Desktop ───────────────────────────────────────────────────
+//
+// Desktop 只在启动时读配置，关掉窗口它还挂在托盘里，客户以为重启了其实没有。
+// 只按安装路径认进程：Claude Code（CLI、VS Code 插件）的进程也叫 claude.exe / claude，
+// 按名字杀会把客户正在用的 Claude Code 一起关掉。
+
+/// 商店版（MSIX，装在 WindowsApps\Claude_*）和旧安装器版（%LOCALAPPDATA%\AnthropicClaude）都认。
+/// 商店版只能经 shell:AppsFolder 启动。
+#[cfg(target_os = "windows")]
+const PS_RESTART_DESKTOP: &str = r#"
+try {
+  $squirrel = Join-Path $env:LOCALAPPDATA 'AnthropicClaude'
+  $isDesktop = { param($p) $p -and ($p -like '*\WindowsApps\Claude_*' -or $p -like "$squirrel\*") }
+  $procs = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { & $isDesktop $_.Path })
+  $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+  for ($i = 0; $i -lt 20; $i++) {
+    if (-not @(Get-Process -ErrorAction SilentlyContinue | Where-Object { & $isDesktop $_.Path }).Count) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  $pkg = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($pkg) {
+    $appId = (Get-AppxPackageManifest $pkg).Package.Applications.Application | Select-Object -First 1 -ExpandProperty Id
+    Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!$appId"
+  } elseif (Test-Path (Join-Path $squirrel 'claude.exe')) {
+    Start-Process (Join-Path $squirrel 'claude.exe')
+  } else {
+    throw '没有找到 Claude 桌面版，请手动打开它'
+  }
+} catch {
+  [Console]::Error.WriteLine("重启 Claude 桌面版失败：" + $_.Exception.Message)
+  exit 1
+}
+"#;
+
+/// `quit app "Claude"` 按应用包名退出，不会碰到同名的 CLI；退不掉再按应用包路径强杀。
+#[cfg(target_os = "macos")]
+const SH_RESTART_DESKTOP: &str = r#"
+osascript -e 'quit app "Claude"' >/dev/null 2>&1 || true
+i=0
+while pgrep -f "/Claude.app/Contents/MacOS/" >/dev/null 2>&1 && [ $i -lt 20 ]; do sleep 0.5; i=$((i+1)); done
+pkill -f "/Claude.app/Contents/MacOS/" >/dev/null 2>&1 || true
+sleep 1
+open -a Claude || { echo "没有找到 Claude 桌面版，请手动打开它" >&2; exit 1; }
+"#;
+
+#[tauri::command]
+pub async fn restart_claude_desktop() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let command_line = powershell_batch(PS_RESTART_DESKTOP)?;
+    #[cfg(target_os = "macos")]
+    let command_line = SH_RESTART_DESKTOP.to_string();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return Err("当前系统不支持自动重启 Claude 桌面版，请手动重新打开".to_string());
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    tauri::async_runtime::spawn_blocking(move || {
+        run_script(command_line, "ccshift_restart_desktop")
+    })
+    .await
+    .map_err(|e| format!("restart task join error: {e}"))?
+}
+
 // ─── 命令 ──────────────────────────────────────────────────────────────────
 
 fn run_script(command_line: String, label: &'static str) -> Result<(), String> {

@@ -1831,6 +1831,7 @@ pub fn run() {
             commands::fix_dev_environment,
             commands::preview_dev_cleanup,
             commands::cleanup_dev_environment,
+            commands::restart_claude_desktop,
             commands::set_npm_registry,
             commands::prepare_tool_uninstall,
             commands::probe_tool_installations,

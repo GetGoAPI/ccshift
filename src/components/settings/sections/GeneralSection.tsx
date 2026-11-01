@@ -20,6 +20,7 @@ import {
   SettingsSwitchRow,
 } from "@/components/settings/SettingsLayout";
 import { useAdvancedMode } from "@/config/edition";
+import { RestoreSection } from "@/components/setup/RestoreSection";
 
 type Language = SettingsFormState["language"];
 
@@ -58,6 +59,7 @@ export function GeneralSection({
           />
         </SettingsCard>
       </SettingsBlock>
+      <RestoreSection />
       <SettingsBlock title={t("settings.general.appearance")}>
         <SettingsCard>
           <SettingsRow

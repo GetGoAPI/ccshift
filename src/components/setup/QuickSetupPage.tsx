@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Eye,
@@ -9,20 +9,28 @@ import {
   PlugZap,
   Sparkles,
   Terminal,
+  TriangleAlert,
   XCircle,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import { fetchModelsForConfig } from "@/lib/api/model-fetch";
+import { checkEnvConflicts, deleteEnvVars } from "@/lib/api/env";
+import type { EnvConflict } from "@/types/env";
 import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { AppGlyph, APP_DISPLAY_NAME } from "@/components/shell/AppGlyph";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BRAND_NAME, markSetupDone } from "@/config/edition";
+import {
+  BRAND_NAME,
+  markOnboardingSkipped,
+  markSetupDone,
+} from "@/config/edition";
 import { generateUUID } from "@/utils/uuid";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { cn } from "@/lib/utils";
 import {
   buildSetupProvider,
   claudeBaseUrl,
@@ -35,7 +43,10 @@ import {
 import { EnvironmentStep } from "./EnvironmentStep";
 import { StepCard } from "./StepCard";
 
-const SETUP_APPS: SetupApp[] = ["claude", "codex"];
+const SETUP_APPS: SetupApp[] = ["claude", "claude-desktop", "codex"];
+
+/** 读 shell 环境变量的命令行工具；Claude Desktop 不受这些变量影响 */
+const ENV_SENSITIVE_APPS = ["claude", "codex"] as const;
 
 interface QuickSetupPageProps {
   /** 配置完成后去看某个应用的供应商列表 */
@@ -51,7 +62,7 @@ type TestState =
 type Configured = { app: SetupApp; providerId: string }[];
 
 /**
- * ccshift 快速配置：三步把 Claude Code / Codex 接到任意第三方 API。
+ * ccshift 快速配置：三步把 Claude Code / Claude Desktop / Codex 接到任意第三方 API。
  * 1. 环境（EnvironmentStep）：执行策略、Node.js、Git、npm 源与权限、两个 CLI
  * 2. 填地址和 Key，测试连接并拉取模型
  * 3. 一键写入并切换
@@ -87,8 +98,24 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
   const queryClient = useQueryClient();
   const [apps, setApps] = useState<Record<SetupApp, boolean>>({
     claude: true,
+    "claude-desktop": false,
     codex: true,
   });
+  // Claude Desktop 是客户自己装的桌面应用：装了才能配，检测到装了就默认勾上
+  const { data: desktopStatus } = useQuery({
+    queryKey: ["claudeDesktopStatus"],
+    queryFn: () => providersApi.getClaudeDesktopStatus(),
+  });
+  const desktopInstalled = Boolean(desktopStatus?.installed);
+  useEffect(() => {
+    if (desktopInstalled) {
+      setApps((prev) => ({ ...prev, "claude-desktop": true }));
+    }
+  }, [desktopInstalled]);
+  // 写入前查到的环境变量冲突：先让客户选清除还是照写
+  const [pendingConflicts, setPendingConflicts] = useState<
+    EnvConflict[] | null
+  >(null);
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -100,7 +127,9 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
   const [configured, setConfigured] = useState<Configured | null>(null);
 
   const urlValid = isValidHttpUrl(baseUrl);
-  const selectedApps = SETUP_APPS.filter((app) => apps[app]);
+  const selectedApps = SETUP_APPS.filter(
+    (app) => apps[app] && (app !== "claude-desktop" || desktopInstalled),
+  );
   const canSubmit =
     urlValid && apiKey.trim().length > 0 && selectedApps.length > 0 && !saving;
   const providerName = name.trim() || defaultProviderName(baseUrl) || "API";
@@ -132,7 +161,21 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
     }
   };
 
-  const submit = async () => {
+  const submit = async (options?: { skipConflictCheck?: boolean }) => {
+    if (!options?.skipConflictCheck) {
+      const found = (
+        await Promise.all(
+          ENV_SENSITIVE_APPS.filter((app) => apps[app]).map((app) =>
+            checkEnvConflicts(app).catch(() => [] as EnvConflict[]),
+          ),
+        )
+      ).flat();
+      if (found.length > 0) {
+        setPendingConflicts(found);
+        return;
+      }
+    }
+    setPendingConflicts(null);
     setSaving(true);
     const done: Configured = [];
     const input = {
@@ -149,9 +192,12 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
         await providersApi.switch(id, app);
         if (app === "claude") {
           // 用第三方 Key 时跳过 Claude Code 首次启动的官方登录引导
-          await settingsApi.applyClaudeOnboardingSkip().catch((error) => {
-            console.warn("[QuickSetup] onboarding skip failed", error);
-          });
+          await settingsApi
+            .applyClaudeOnboardingSkip()
+            .then(() => markOnboardingSkipped())
+            .catch((error) => {
+              console.warn("[QuickSetup] onboarding skip failed", error);
+            });
         }
         done.push({ app, providerId: id });
         await queryClient.invalidateQueries({ queryKey: ["providers", app] });
@@ -169,6 +215,20 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const clearConflictsAndSubmit = async () => {
+    if (!pendingConflicts) return;
+    try {
+      await deleteEnvVars(pendingConflicts);
+      toast.success(t("setup.env.conflictsCleared"));
+    } catch (error) {
+      toast.error(t("setup.env.conflictsFailed"), {
+        description: extractErrorMessage(error) || undefined,
+      });
+      return;
+    }
+    await submit({ skipConflictCheck: true });
   };
 
   if (configured) {
@@ -196,22 +256,37 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
         <div className="space-y-1.5">
           <Label>{t("setup.api.apps")}</Label>
           <div className="flex gap-4">
-            {SETUP_APPS.map((app) => (
-              <label
-                key={app}
-                className="flex cursor-pointer items-center gap-2 text-body"
-              >
-                <Checkbox
-                  checked={apps[app]}
-                  onCheckedChange={(checked) =>
-                    setApps((prev) => ({ ...prev, [app]: checked }))
+            {SETUP_APPS.map((app) => {
+              const unavailable = app === "claude-desktop" && !desktopInstalled;
+              return (
+                <label
+                  key={app}
+                  className={cn(
+                    "flex items-center gap-2 text-body",
+                    unavailable ? "text-fg-3" : "cursor-pointer",
+                  )}
+                  title={
+                    unavailable ? t("setup.api.desktopMissing") : undefined
                   }
-                />
-                <AppGlyph app={app} size={16} />
-                {APP_DISPLAY_NAME[app]}
-              </label>
-            ))}
+                >
+                  <Checkbox
+                    checked={apps[app] && !unavailable}
+                    disabled={unavailable}
+                    onCheckedChange={(checked) =>
+                      setApps((prev) => ({ ...prev, [app]: checked }))
+                    }
+                  />
+                  <AppGlyph app={app} size={16} />
+                  {APP_DISPLAY_NAME[app]}
+                </label>
+              );
+            })}
           </div>
+          {apps["claude-desktop"] && desktopInstalled && (
+            <p className="text-caption text-fg-3">
+              {t("setup.api.desktopHint")}
+            </p>
+          )}
         </div>
 
         <Field
@@ -223,9 +298,9 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
                   .map(
                     (app) =>
                       `${APP_DISPLAY_NAME[app]}: ${
-                        app === "claude"
-                          ? claudeBaseUrl(baseUrl)
-                          : codexBaseUrl(baseUrl)
+                        app === "codex"
+                          ? codexBaseUrl(baseUrl)
+                          : claudeBaseUrl(baseUrl)
                       }`,
                   )
                   .join("   ")
@@ -355,6 +430,36 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
           )}
         </div>
       </div>
+      {pendingConflicts && (
+        <div className="space-y-2 bg-warning-soft px-4 py-3">
+          <p className="flex items-start gap-2 text-body text-fg-1">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-text" />
+            {t("setup.api.conflictWarning", {
+              names: [...new Set(pendingConflicts.map((c) => c.varName))].join(
+                "、",
+              ),
+            })}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              size="compact"
+              variant="quiet"
+              disabled={saving}
+              onClick={() => void submit({ skipConflictCheck: true })}
+            >
+              {t("setup.api.conflictIgnore")}
+            </Button>
+            <Button
+              size="compact"
+              variant="solid"
+              disabled={saving}
+              onClick={() => void clearConflictsAndSubmit()}
+            >
+              {t("setup.api.conflictClear")}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-end gap-3 px-4 py-3">
         <span className="me-auto text-caption text-fg-3">
           {t("setup.api.submitHint")}
@@ -362,7 +467,7 @@ function ApiStep({ onOpenApp }: { onOpenApp: (app: AppId) => void }) {
         <Button
           size="regular"
           variant="solid"
-          disabled={!canSubmit}
+          disabled={!canSubmit || pendingConflicts !== null}
           onClick={() => void submit()}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -470,7 +575,9 @@ function DoneCard({
           <div className="min-w-0 flex-1">
             <div className="text-strong text-fg-1">{APP_DISPLAY_NAME[app]}</div>
             <div className="text-caption text-fg-3">
-              {t("setup.done.runHint", { command: app })}
+              {app === "claude-desktop"
+                ? t("setup.done.desktopHint")
+                : t("setup.done.runHint", { command: app })}
             </div>
           </div>
           <Button
@@ -480,16 +587,22 @@ function DoneCard({
           >
             {t("setup.done.viewProviders")}
           </Button>
-          <Button
-            size="compact"
-            variant="solid"
-            onClick={() => void openTerminal(app, providerId)}
-          >
-            <Terminal className="h-3.5 w-3.5" />
-            {t("setup.done.openTerminal")}
-          </Button>
+          {app !== "claude-desktop" && (
+            <Button
+              size="compact"
+              variant="solid"
+              onClick={() => void openTerminal(app, providerId)}
+            >
+              <Terminal className="h-3.5 w-3.5" />
+              {t("setup.done.openTerminal")}
+            </Button>
+          )}
         </div>
       ))}
+      <p className="flex items-start gap-2 bg-warning-soft px-4 py-3 text-body text-fg-1">
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-text" />
+        {t("setup.done.restartHint")}
+      </p>
       <div className="flex justify-end px-4 py-3">
         <Button size="compact" variant="quiet" onClick={onAgain}>
           {t("setup.done.again")}

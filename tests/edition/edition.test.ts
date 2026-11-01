@@ -13,18 +13,24 @@ describe("ccshift 发行版配置", () => {
     localStorage.clear();
   });
 
-  it("只默认显示 Claude Code 和 Codex", () => {
+  it("只默认显示 Claude Code、Claude Desktop 和 Codex", () => {
     const visible = Object.entries(DEFAULT_VISIBLE_APPS)
       .filter(([, on]) => on)
       .map(([app]) => app);
-    expect(visible).toEqual(["claude", "codex"]);
+    expect(visible).toEqual(["claude", "claude-desktop", "codex"]);
   });
 
   it("应用顺序里过滤掉其他应用，保留用户拖出来的顺序", () => {
-    expect(orderAppIds(undefined)).toEqual(["claude", "codex"]);
+    expect(orderAppIds(undefined)).toEqual([
+      "claude",
+      "claude-desktop",
+      "codex",
+    ]);
+    // 没拖过的 Claude Desktop 插回默认位置：紧跟在 Claude Code 后面
     expect(orderAppIds(["gemini", "codex", "claude"])).toEqual([
       "codex",
       "claude",
+      "claude-desktop",
     ]);
   });
 

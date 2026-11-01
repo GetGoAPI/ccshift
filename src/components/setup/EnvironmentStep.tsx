@@ -9,9 +9,13 @@ import {
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { settingsApi } from "@/lib/api";
+import { checkEnvConflicts, deleteEnvVars } from "@/lib/api/env";
+import type { EnvConflict } from "@/types/env";
 import {
   devEnvironmentApi,
   isChinaMirror,
+  isNodeOutdated,
+  MIN_NODE_MAJOR,
   isLikelyChinaNetwork,
   isPowershellPolicyBlocking,
   NPM_CHINA_MIRROR,
@@ -25,9 +29,10 @@ import { Button } from "@/components/ui/button";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { cn } from "@/lib/utils";
 import { StepCard } from "./StepCard";
-import type { SetupApp } from "./setupUtils";
 
-const SETUP_APPS: SetupApp[] = ["claude", "codex"];
+/** 要装的命令行工具（Claude Desktop 是客户自己装的桌面应用，不在这里装） */
+const CLI_APPS = ["claude", "codex"] as const;
+type CliApp = (typeof CLI_APPS)[number];
 
 const NODE_DOWNLOAD_URL = "https://nodejs.org/zh-cn/download";
 const GIT_DOWNLOAD_URL = "https://git-scm.com/downloads";
@@ -43,6 +48,7 @@ type EnvTask =
   | "git"
   | "registry"
   | "npmPrefix"
+  | "conflicts"
   | "tools";
 
 function StatusIcon({ ok, busy }: { ok: boolean | null; busy?: boolean }) {
@@ -107,12 +113,20 @@ export function EnvironmentStep() {
   const [failed, setFailed] = useState<Partial<Record<DevDependency, true>>>(
     {},
   );
+  // 系统环境变量 / shell 启动文件里的 ANTHROPIC_* / OPENAI_*：会盖掉或干扰写入的 Key
+  const [conflicts, setConflicts] = useState<EnvConflict[]>([]);
 
   const refresh = useCallback(async () => {
     setChecking(true);
     try {
-      const next = await devEnvironmentApi.check();
+      const [next, found] = await Promise.all([
+        devEnvironmentApi.check(),
+        Promise.all(CLI_APPS.map((app) => checkEnvConflicts(app)))
+          .then((lists) => lists.flat())
+          .catch(() => [] as EnvConflict[]),
+      ]);
       setEnv(next);
+      setConflicts(found);
       return next;
     } catch (error) {
       console.error("[QuickSetup] environment check failed", error);
@@ -178,6 +192,23 @@ export function EnvironmentStep() {
       t("setup.env.fixFailed"),
     );
 
+  const clearConflicts = async () => {
+    await runTask(
+      "conflicts",
+      async () => {
+        const backup = await deleteEnvVars(conflicts);
+        toast.success(t("setup.env.conflictsCleared"), {
+          description: t("setup.env.conflictsBackup", {
+            path: backup.backupPath,
+          }),
+          closeButton: true,
+        });
+      },
+      t("setup.env.conflictsFailed"),
+    );
+    await refresh();
+  };
+
   const fixNpmPrefix = () =>
     runTask(
       "npmPrefix",
@@ -217,7 +248,7 @@ export function EnvironmentStep() {
     }
   };
 
-  const runToolInstall = async (apps: SetupApp[]) => {
+  const runToolInstall = async (apps: CliApp[]) => {
     if (apps.length === 0) return;
     setTask("tools");
     try {
@@ -227,13 +258,16 @@ export function EnvironmentStep() {
     }
   };
 
-  const installTools = async (apps: SetupApp[]) => {
+  const installTools = async (apps: CliApp[]) => {
     await prepareNpm(env);
     await runToolInstall(apps);
     await refresh();
   };
 
-  /** 一键全部安装：执行策略 → Node.js → Git → npm 镜像 / 权限 → Claude Code、Codex */
+  /**
+   * 一键全部安装：执行策略 → Node.js（没装或低于 22 时装 / 升级）→ Git → npm 镜像 / 权限
+   * → Claude Code、Codex。环境变量冲突要删客户自己设的东西，不自动做，单独一行让客户点。
+   */
   const installAll = async () => {
     setInstallingAll(true);
     try {
@@ -245,10 +279,14 @@ export function EnvironmentStep() {
       ) {
         await fixPowershell();
       }
-      if (!current.nodeVersion || !current.npmVersion) {
+      if (
+        !current.nodeVersion ||
+        !current.npmVersion ||
+        isNodeOutdated(current.nodeVersion)
+      ) {
         await installDependency("node");
         current = (await refresh()) ?? current;
-        if (!current.nodeVersion) {
+        if (!current.nodeVersion || isNodeOutdated(current.nodeVersion)) {
           toast.error(t("setup.env.installAllStopped"), { closeButton: true });
           return;
         }
@@ -258,9 +296,9 @@ export function EnvironmentStep() {
       }
       await prepareNpm(current);
       // 读最新的安装状态：hook 里的版本信息在这次异步流程里是旧的
-      const versions = await settingsApi.getToolVersions([...SETUP_APPS]);
+      const versions = await settingsApi.getToolVersions([...CLI_APPS]);
       await runToolInstall(
-        SETUP_APPS.filter(
+        CLI_APPS.filter(
           (app) => !versions.find((v) => v.name === app)?.version,
         ),
       );
@@ -274,16 +312,16 @@ export function EnvironmentStep() {
 
   const isWindows = env?.platform === "windows";
   const hasNode = env ? Boolean(env.nodeVersion && env.npmVersion) : null;
+  const nodeOutdated = hasNode === true && isNodeOutdated(env?.nodeVersion);
+  const nodeOk = hasNode === null ? null : hasNode && !nodeOutdated;
   const hasGit = env ? Boolean(env.gitVersion) : null;
   const policyBlocking = isPowershellPolicyBlocking(env?.powershellPolicy);
   const busy = installingAll || task !== null;
   const allReady =
-    hasNode === true &&
+    nodeOk === true &&
     (!isWindows || (hasGit === true && !policyBlocking)) &&
     env?.npmGlobalWritable !== false &&
-    SETUP_APPS.every((app) =>
-      Boolean(tools.toolVersionByName.get(app)?.version),
-    );
+    CLI_APPS.every((app) => Boolean(tools.toolVersionByName.get(app)?.version));
 
   const spinner = (active: boolean) =>
     active && <Loader2 className="h-3.5 w-3.5 animate-spin" />;
@@ -300,7 +338,9 @@ export function EnvironmentStep() {
         ? t("setup.env.installing")
         : failed[name]
           ? t("setup.env.download")
-          : t("setup.env.install")}
+          : name === "node" && nodeOutdated
+            ? t("setup.env.upgrade")
+            : t("setup.env.install")}
     </Button>
   );
 
@@ -362,11 +402,15 @@ export function EnvironmentStep() {
       )}
       <EnvRow
         name="Node.js"
-        hint={t("setup.env.nodeHint")}
+        hint={
+          nodeOutdated
+            ? t("setup.env.nodeOutdated", { min: MIN_NODE_MAJOR })
+            : t("setup.env.nodeHint")
+        }
         value={env?.nodeVersion}
-        ok={hasNode}
+        ok={nodeOk}
         busy={(checking && !env) || task === "node"}
-        action={hasNode === false && dependencyButton("node")}
+        action={nodeOk === false && dependencyButton("node")}
       />
       {isWindows && (
         <EnvRow
@@ -410,7 +454,27 @@ export function EnvironmentStep() {
           }
         />
       )}
-      {SETUP_APPS.map((app) => {
+      {conflicts.length > 0 && (
+        <EnvRow
+          name={t("setup.env.conflicts")}
+          hint={t("setup.env.conflictsHint", {
+            names: [...new Set(conflicts.map((c) => c.varName))].join("、"),
+          })}
+          ok={false}
+          busy={task === "conflicts"}
+          action={
+            <Button
+              size="compact"
+              variant="neutral"
+              disabled={busy}
+              onClick={() => void clearConflicts()}
+            >
+              {t("setup.env.conflictsClear")}
+            </Button>
+          }
+        />
+      )}
+      {CLI_APPS.map((app) => {
         const info = tools.toolVersionByName.get(app);
         const toolBusy = tools.busyTools.has(app);
         const loading =

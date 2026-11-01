@@ -147,22 +147,45 @@ function Add-UserPath([string]$dir) {
 }
 "#;
 
-/// 从镜像装 Node.js：取最新 LTS 的 zip，解压到 %LOCALAPPDATA%\Programs\nodejs 并加进用户 PATH。
-/// npm 全局包默认装在 node.exe 同目录（新版 npm 实测如此）；旧版 npm 的内置 npmrc 指向
-/// %APPDATA%\npm，这个目录也一并加进 PATH。两处都在用户目录下，全局安装不需要管理员。
+/// 装 / 升级 Node.js（都从国内镜像下载最新 LTS）：
+/// - nvm-windows 管理的：不动，提示客户用 nvm 升级（覆盖会弄坏 nvm 的软链接）。
+/// - 装在系统 PATH 里的旧版（官网 MSI 装在 Program Files）：系统 PATH 排在用户 PATH 前面，
+///   另装一份到用户目录会被它挡住，只能用官方 MSI 覆盖升级（会弹管理员确认）。
+/// - 其余（没装、ccshift 自己装的、其他用户目录）：zip 解压到 %LOCALAPPDATA%\Programs\nodejs，
+///   加进用户 PATH 最前面。npm 全局包默认装在 node.exe 同目录；旧版 npm 的内置 npmrc 指向
+///   %APPDATA%\npm，这个目录也一并加进 PATH。都在用户目录下，全局安装不需要管理员。
 #[cfg(target_os = "windows")]
 const PS_INSTALL_NODE: &str = r#"
 try {
   $mirror = 'https://cdn.npmmirror.com/binaries/node'
+  $programs = Join-Path $env:LOCALAPPDATA 'Programs'
+  $dest = Join-Path $programs 'nodejs'
+  $existing = Get-Command node.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+  $existingDir = if ($existing) { Split-Path $existing.Source } else { $null }
+  $nvm = [Environment]::GetEnvironmentVariable('NVM_HOME', 'User'), [Environment]::GetEnvironmentVariable('NVM_HOME', 'Machine'), $env:NVM_HOME | Where-Object { $_ } | Select-Object -First 1
+  $nvmLink = [Environment]::GetEnvironmentVariable('NVM_SYMLINK', 'Machine'), [Environment]::GetEnvironmentVariable('NVM_SYMLINK', 'User'), $env:NVM_SYMLINK | Where-Object { $_ } | Select-Object -First 1
+  if ($existingDir -and $nvm -and (-not $nvmLink -or ($existingDir -eq $nvmLink))) {
+    throw '检测到 Node.js 由 nvm 管理，请打开终端执行：nvm install lts，然后执行：nvm use lts'
+  }
+  $machinePath = @(([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') | ForEach-Object { $_.TrimEnd('\') })
+  $useMsi = $existingDir -and ($existingDir -ne $dest) -and ($machinePath -contains $existingDir.TrimEnd('\'))
+  $kind = if ($useMsi) { 'msi' } else { 'zip' }
   $version = $null
   try {
     $index = Invoke-RestMethod "$mirror/index.json" -TimeoutSec 30
-    $version = ($index | Where-Object { $_.lts -and ($_.files -contains "win-$arch-zip") } | Select-Object -First 1).version
+    $version = ($index | Where-Object { $_.lts -and ($_.files -contains "win-$arch-$kind") } | Select-Object -First 1).version
   } catch {}
   if (-not $version) { $version = 'v24.11.1' }
+  if ($useMsi) {
+    $msi = Join-Path $env:TEMP "node-$version-$arch.msi"
+    Invoke-WebRequest "$mirror/$version/node-$version-$arch.msi" -OutFile $msi -UseBasicParsing
+    $proc = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/passive', '/norestart' -Wait -PassThru
+    Remove-Item $msi -Force -ErrorAction SilentlyContinue
+    if ($proc.ExitCode -eq 1602) { throw '已取消升级（需要在弹出的窗口里点「是」允许安装）' }
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) { throw "安装程序退出码 $($proc.ExitCode)" }
+    exit 0
+  }
   $name = "node-$version-win-$arch"
-  $programs = Join-Path $env:LOCALAPPDATA 'Programs'
-  $dest = Join-Path $programs 'nodejs'
   $staging = Join-Path $programs '.ccshift-node'
   New-Item -ItemType Directory -Force $staging | Out-Null
   $zip = Join-Path $staging "$name.zip"
@@ -171,6 +194,8 @@ try {
   if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
   Move-Item (Join-Path $staging $name) $dest
   Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+  # 标记：一键还原只删带这个文件的目录，客户自己装的不碰
+  Set-Content (Join-Path $dest '.ccshift-installed') 'installed by ccshift'
   $npmGlobal = Join-Path $env:APPDATA 'npm'
   New-Item -ItemType Directory -Force $npmGlobal | Out-Null
   Add-UserPath $npmGlobal
@@ -205,6 +230,7 @@ try {
   $proc = Start-Process -FilePath $exe -ArgumentList '-y', "-o`"$dest`"" -Wait -PassThru -WindowStyle Hidden
   Remove-Item $exe -Force -ErrorAction SilentlyContinue
   if ($proc.ExitCode -ne 0 -or -not (Test-Path (Join-Path $dest 'bin\bash.exe'))) { throw "解压失败（退出码 $($proc.ExitCode)）" }
+  Set-Content (Join-Path $dest '.ccshift-installed') 'installed by ccshift'
   Add-UserPath (Join-Path $dest 'cmd')
   [Environment]::SetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', (Join-Path $dest 'bin\bash.exe'), 'User')
 } catch {
@@ -224,13 +250,26 @@ try {
 }
 "#;
 
-/// 包成 .bat 内容交给 `run_tool_lifecycle_silently`（它写临时 .bat、用 `cmd /C` 无窗口执行）
+/// 包成 .bat 内容交给 `run_tool_lifecycle_silently`（它写临时 .bat、用 `cmd /C` 无窗口执行）。
+///
+/// 脚本本体写进临时 .ps1：整段塞进 -EncodedCommand 会超过 cmd 单行 8191 字符的上限。
+/// 命令行上只放一小段编码过的引导：读入脚本、删掉文件、执行。路径在编码内容里，
+/// 用户名带中文也不经过 cmd 的代码页解析；脚本里的 `exit n` 就是进程退出码。
 #[cfg(target_os = "windows")]
-fn powershell_batch(script: &str) -> String {
-    format!(
+fn powershell_batch(script: &str) -> Result<String, String> {
+    let path = std::env::temp_dir().join(format!("ccshift_{}.ps1", uuid::Uuid::new_v4()));
+    std::fs::write(&path, format!("{PS_PRELUDE}{script}"))
+        .map_err(|e| format!("写入脚本失败: {e}"))?;
+    let quoted = path.to_string_lossy().replace('\'', "''");
+    let bootstrap = format!(
+        "$ProgressPreference = 'SilentlyContinue'; $p = '{quoted}'; \
+         $s = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8); \
+         Remove-Item -LiteralPath $p -Force; & ([ScriptBlock]::Create($s))"
+    );
+    Ok(format!(
         "@echo off\r\nchcp 65001 >nul\r\npowershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {}\r\n",
-        powershell_encoded_command(&format!("{PS_PRELUDE}{script}"))
-    )
+        powershell_encoded_command(&bootstrap)
+    ))
 }
 
 // ─── macOS / Linux 脚本 ────────────────────────────────────────────────────
@@ -272,6 +311,7 @@ tar -xzf "$tmp/node.tar.gz" -C "$tmp"
 rm -rf "$dest"
 mkdir -p "$(dirname "$dest")"
 mv "$tmp/$name" "$dest"
+echo "installed by ccshift" > "$dest/.ccshift-installed"
 add_path "$HOME/.ccshift/node/bin"
 "#;
 
@@ -283,6 +323,155 @@ npm config set prefix "$HOME/.npm-global"
 add_path "$HOME/.npm-global/bin"
 "#;
 
+/// 一键还原：只撤销 ccshift 做过的改动。目录凭 `.ccshift-installed` 标记认；
+/// npm 源 / 执行策略按 env-changes.json 里的记录还原；客户自己装的东西不碰。
+/// 官网 MSI 也会把 %APPDATA%\npm 加进用户 PATH，所以这一项不删。
+#[cfg(target_os = "windows")]
+const PS_CLEANUP: &str = r#"
+function Remove-UserPath([string]$dir) {
+  $current = [Environment]::GetEnvironmentVariable('Path', 'User')
+  $parts = @(($current -split ';') | Where-Object { $_ -and ($_.TrimEnd('\') -ne $dir.TrimEnd('\')) })
+  [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User')
+}
+$errors = @()
+$programs = Join-Path $env:LOCALAPPDATA 'Programs'
+if ($resetRegistry) { try { & npm.cmd config delete registry | Out-Null } catch {} }
+$node = Join-Path $programs 'nodejs'
+if (Test-Path (Join-Path $node '.ccshift-installed')) {
+  try { Remove-Item $node -Recurse -Force } catch { $errors += 'Node.js：' + $_.Exception.Message }
+  Remove-UserPath $node
+}
+$git = Join-Path $programs 'Git'
+if (Test-Path (Join-Path $git '.ccshift-installed')) {
+  try { Remove-Item $git -Recurse -Force } catch { $errors += 'Git：' + $_.Exception.Message }
+  Remove-UserPath (Join-Path $git 'cmd')
+  $bash = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', 'User')
+  if ($bash -and $bash.StartsWith($git)) { [Environment]::SetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', $null, 'User') }
+}
+if ($resetPolicy) {
+  try { Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Undefined -Force } catch { $errors += 'PowerShell：' + $_.Exception.Message }
+}
+if ($errors.Count -gt 0) { [Console]::Error.WriteLine(($errors -join "`n")); exit 1 }
+"#;
+
+/// ~/.ccshift/node 只可能是 ccshift 装的，直接删；启动文件里带 "# added by ccshift" 的行删掉。
+/// 用 cat 覆盖而不是 mv：保留原文件的权限和软链接。
+#[cfg(not(target_os = "windows"))]
+const SH_CLEANUP: &str = r##"
+if [ "$reset_registry" = 1 ]; then npm config delete registry >/dev/null 2>&1 || true; fi
+if [ "$reset_prefix" = 1 ]; then npm config delete prefix >/dev/null 2>&1 || true; fi
+rm -rf "$HOME/.ccshift/node"
+for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+  if [ -f "$rc" ] && grep -q "# added by ccshift" "$rc"; then
+    grep -v "# added by ccshift" "$rc" > "$rc.ccshift.tmp" && cat "$rc.ccshift.tmp" > "$rc"
+    rm -f "$rc.ccshift.tmp"
+  fi
+done
+"##;
+
+// ─── 改动记录 ──────────────────────────────────────────────────────────────
+
+/// ccshift 改过的全局设置，一键还原时据此撤销（目录类改动靠目录里的标记文件认）
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct EnvChanges {
+    pub npm_registry: bool,
+    pub powershell_policy: bool,
+    pub npm_prefix: bool,
+}
+
+fn changes_path() -> std::path::PathBuf {
+    crate::config::get_home_dir()
+        .join(".ccshift")
+        .join("env-changes.json")
+}
+
+fn read_changes() -> EnvChanges {
+    std::fs::read_to_string(changes_path())
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+/// 记录失败不影响操作本身：最多是还原时少还原一项
+fn update_changes(update: impl FnOnce(&mut EnvChanges)) {
+    let mut changes = read_changes();
+    update(&mut changes);
+    let path = changes_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(text) = serde_json::to_string_pretty(&changes) {
+        if let Err(e) = std::fs::write(&path, text) {
+            log::warn!("记录 ccshift 环境改动失败: {e}");
+        }
+    }
+}
+
+/// ccshift 自己装的 Node.js / Git 目录（带标记文件的才算）
+fn installed_dirs() -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {
+    #[cfg(target_os = "windows")]
+    {
+        let programs = dirs::data_local_dir().map(|dir| dir.join("Programs"));
+        let marked = |name: &str| {
+            programs
+                .as_ref()
+                .map(|dir| dir.join(name))
+                .filter(|dir| dir.join(".ccshift-installed").is_file())
+        };
+        (marked("nodejs"), marked("Git"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let node = crate::config::get_home_dir().join(".ccshift").join("node");
+        (node.is_dir().then_some(node), None)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DevCleanupPreview {
+    pub node_dir: Option<String>,
+    pub git_dir: Option<String>,
+    #[serde(flatten)]
+    pub changes: EnvChanges,
+}
+
+#[tauri::command]
+pub async fn preview_dev_cleanup() -> Result<DevCleanupPreview, String> {
+    let (node, git) = installed_dirs();
+    Ok(DevCleanupPreview {
+        node_dir: node.map(|dir| dir.to_string_lossy().into_owned()),
+        git_dir: git.map(|dir| dir.to_string_lossy().into_owned()),
+        changes: read_changes(),
+    })
+}
+
+/// 撤销 ccshift 对运行环境的改动（npm 源、执行策略、npm 目录、装的 Node.js / Git）。
+/// 先卸载 Claude Code / Codex 再调这个：npm 装的 CLI 要靠 Node 卸载。
+#[tauri::command]
+pub async fn cleanup_dev_environment() -> Result<(), String> {
+    let changes = read_changes();
+    #[cfg(target_os = "windows")]
+    let command_line = powershell_batch(&format!(
+        "$resetRegistry = ${}\n$resetPolicy = ${}\n{PS_CLEANUP}",
+        changes.npm_registry, changes.powershell_policy
+    ))?;
+    #[cfg(not(target_os = "windows"))]
+    let command_line = format!(
+        "reset_registry={}\nreset_prefix={}\n{SH_CLEANUP}",
+        u8::from(changes.npm_registry),
+        u8::from(changes.npm_prefix)
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        run_script(command_line, "ccshift_env_cleanup")?;
+        let _ = std::fs::remove_file(changes_path());
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("environment cleanup task join error: {e}"))?
+}
+
 // ─── 命令 ──────────────────────────────────────────────────────────────────
 
 fn run_script(command_line: String, label: &'static str) -> Result<(), String> {
@@ -293,8 +482,8 @@ fn dev_dependency_install_command(name: &str) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         match name {
-            "node" => Ok(powershell_batch(PS_INSTALL_NODE)),
-            "git" => Ok(powershell_batch(PS_INSTALL_GIT)),
+            "node" => powershell_batch(PS_INSTALL_NODE),
+            "git" => powershell_batch(PS_INSTALL_GIT),
             _ => Err(format!("不支持安装：{name}")),
         }
     }
@@ -322,14 +511,21 @@ pub async fn install_dev_dependency(name: String) -> Result<(), String> {
 pub async fn fix_dev_environment(issue: String) -> Result<(), String> {
     let command_line = match issue.as_str() {
         #[cfg(target_os = "windows")]
-        "powershellPolicy" => powershell_batch(PS_FIX_POLICY),
+        "powershellPolicy" => powershell_batch(PS_FIX_POLICY)?,
         #[cfg(not(target_os = "windows"))]
         "npmPrefix" => format!("{SH_PRELUDE}{SH_FIX_NPM_PREFIX}"),
         _ => return Err(format!("不支持的修复项：{issue}")),
     };
-    tauri::async_runtime::spawn_blocking(move || run_script(command_line, "ccshift_env_fix"))
-        .await
-        .map_err(|e| format!("environment fix task join error: {e}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        run_script(command_line, "ccshift_env_fix")?;
+        update_changes(|changes| match issue.as_str() {
+            "powershellPolicy" => changes.powershell_policy = true,
+            _ => changes.npm_prefix = true,
+        });
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("environment fix task join error: {e}"))?
 }
 
 /// 只接受 http(s) 地址、不含空白与 shell 元字符：地址会原样拼进命令行
@@ -353,9 +549,14 @@ pub async fn set_npm_registry(registry: String) -> Result<(), String> {
     let command_line = format!("@echo off\r\ncall npm config set registry {url}\r\n");
     #[cfg(not(target_os = "windows"))]
     let command_line = format!("npm config set registry {url}");
-    tauri::async_runtime::spawn_blocking(move || run_script(command_line, "ccshift_npm_registry"))
-        .await
-        .map_err(|e| format!("npm registry task join error: {e}"))?
+    let is_mirror = url.contains("npmmirror.com");
+    tauri::async_runtime::spawn_blocking(move || {
+        run_script(command_line, "ccshift_npm_registry")?;
+        update_changes(|changes| changes.npm_registry = is_mirror);
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("npm registry task join error: {e}"))?
 }
 
 #[cfg(test)]

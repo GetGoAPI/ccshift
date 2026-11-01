@@ -5141,7 +5141,7 @@
   },
   "setup": {
     "title": "Quick Setup",
-    "intro": "Three steps: set up the environment → enter your API URL and key → write it to Claude Code / Codex. Then run claude or codex in a terminal.",
+    "intro": "Three steps: set up the environment → enter your API URL and key → write it to Claude Code / Claude Desktop / Codex. Then run claude or codex in a terminal.",
     "env": {
       "title": "Check environment",
       "description": "Claude Code and Codex need Node.js; on Windows Claude Code also needs Git. Click \"Install all\" to set up everything missing — no administrator rights needed.",
@@ -5176,8 +5176,17 @@
         "git": "Installing Git…",
         "registry": "Switching registry…",
         "npmPrefix": "Fixing npm permission…",
-        "tools": "Installing Claude Code / Codex…"
-      }
+        "tools": "Installing Claude Code / Codex…",
+        "conflicts": "Clearing variables…"
+      },
+      "upgrade": "Upgrade",
+      "nodeOutdated": "Too old — the latest Claude Code needs Node.js {{min}}+",
+      "conflicts": "Environment variable conflicts",
+      "conflictsHint": "{{names}} is set on this computer and overrides or interferes with the key ccshift writes",
+      "conflictsClear": "Clear",
+      "conflictsCleared": "Conflicting environment variables cleared",
+      "conflictsBackup": "Original values backed up to {{path}}",
+      "conflictsFailed": "Failed to clear environment variables"
     },
     "api": {
       "title": "API details",
@@ -5203,7 +5212,12 @@
       "codexModelHint": "Leave empty for the default; pick from the list after testing",
       "submitHint": "Creates a provider and enables it right away; existing config is backed up",
       "submit": "Set up",
-      "saveFailed": "Failed to write configuration"
+      "saveFailed": "Failed to write configuration",
+      "desktopMissing": "Claude Desktop is not installed. Install it, then come back.",
+      "desktopHint": "Claude Desktop only supports Anthropic-format APIs (same URL as Claude Code). Sonnet / Opus / Haiku are sent to your API by their original model names.",
+      "conflictWarning": "Environment variables {{names}} are set and will override this configuration, so the old key or URL would still be used. Clearing them is recommended (values are backed up).",
+      "conflictIgnore": "Continue anyway",
+      "conflictClear": "Clear and continue"
     },
     "done": {
       "title": "All set",
@@ -5213,7 +5227,9 @@
       "viewProviders": "View providers",
       "openTerminal": "Open terminal",
       "terminalFailed": "Failed to open terminal",
-      "again": "Set up another"
+      "again": "Set up another",
+      "desktopHint": "Quit Claude Desktop completely and reopen it",
+      "restartHint": "Terminals and VS Code / Cursor windows that are already open won't see the new configuration. Close and reopen them."
     },
     "advanced": {
       "block": "Interface",
@@ -5222,6 +5238,31 @@
     },
     "about": {
       "basedOn": "Based on the open-source project"
+    },
+    "restore": {
+      "block": "Restore",
+      "label": "Restore",
+      "description": "Undo the changes ccshift made to Claude Code, Codex and this computer",
+      "button": "Restore…",
+      "title": "Restore",
+      "intro": "Choose how much to undo. Do this before uninstalling ccshift, otherwise Claude Code / Codex keep using the API configured here.",
+      "config": "Restore configuration only",
+      "full": "Full cleanup",
+      "itemSwitch": "Switch Claude Code, Claude Desktop and Codex back to the configuration from before ccshift, or to the official one",
+      "itemOnboarding": "Bring back Claude Code's first-run sign-in (if ccshift skipped it)",
+      "itemConfigToo": "Everything in \"Restore configuration only\"",
+      "itemUninstall": "Uninstall Claude Code and Codex",
+      "itemNode": "Delete the Node.js installed by ccshift ({{path}})",
+      "itemGit": "Delete the Git installed by ccshift ({{path}})",
+      "itemRegistry": "Reset the npm registry",
+      "itemPolicy": "Restore the PowerShell script restriction",
+      "itemPrefix": "Reset the npm global install folder",
+      "keepNote": "Node.js and Git you installed yourself are kept. The provider list is kept so you can switch back later.",
+      "confirmConfig": "Restore configuration",
+      "confirmFull": "Clean up everything",
+      "done": "Restored",
+      "restartHint": "Close and reopen any open terminals and VS Code",
+      "partial": "Some items could not be restored"
     }
   }
 }

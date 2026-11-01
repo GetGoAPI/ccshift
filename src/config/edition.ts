@@ -13,7 +13,11 @@ import type { AppId } from "@/lib/api/types";
 export const BRAND_NAME = "ccshift";
 
 /** 本发行版管理的应用（侧栏、应用页、托盘只显示这些） */
-export const EDITION_APPS: readonly AppId[] = ["claude", "codex"];
+export const EDITION_APPS: readonly AppId[] = [
+  "claude",
+  "claude-desktop",
+  "codex",
+];
 
 /** 本发行版检测 / 安装的命令行工具 */
 export const EDITION_TOOL_NAMES = ["claude", "codex"] as const;
@@ -34,6 +38,7 @@ export const UPDATE_CHECK_ENABLED = false;
 
 const ADVANCED_MODE_KEY = "ccshift-advanced-mode";
 const SETUP_DONE_KEY = "ccshift-setup-done";
+const ONBOARDING_SKIPPED_KEY = "ccshift-onboarding-skipped";
 const listeners = new Set<() => void>();
 
 function readFlag(key: string): boolean {
@@ -90,6 +95,22 @@ export function isSetupDone(): boolean {
 
 export function markSetupDone() {
   writeFlag(SETUP_DONE_KEY, true);
+}
+
+/**
+ * 快速配置替客户跳过了 Claude Code 的首次登录引导（~/.claude.json 的 hasCompletedOnboarding）。
+ * 一键还原时只撤销 ccshift 自己写的，客户原本就走完引导的不动。
+ */
+export function markOnboardingSkipped() {
+  writeFlag(ONBOARDING_SKIPPED_KEY, true);
+}
+
+export function wasOnboardingSkipped(): boolean {
+  return readFlag(ONBOARDING_SKIPPED_KEY);
+}
+
+export function clearOnboardingSkipped() {
+  writeFlag(ONBOARDING_SKIPPED_KEY, false);
 }
 
 /**

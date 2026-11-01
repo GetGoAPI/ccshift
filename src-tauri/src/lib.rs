@@ -1829,6 +1829,8 @@ pub fn run() {
             commands::check_dev_environment,
             commands::install_dev_dependency,
             commands::fix_dev_environment,
+            commands::preview_dev_cleanup,
+            commands::cleanup_dev_environment,
             commands::set_npm_registry,
             commands::prepare_tool_uninstall,
             commands::probe_tool_installations,

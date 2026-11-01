@@ -5141,7 +5141,7 @@
   },
   "setup": {
     "title": "快速配置",
-    "intro": "三步完成：装好环境 → 填入 API 地址和密钥 → 一键写入 Claude Code / Codex。之后打开终端输入 claude 或 codex 就能用。",
+    "intro": "三步完成：装好环境 → 填入 API 地址和密钥 → 一键写入 Claude Code / Claude 桌面版 / Codex。之后打开终端输入 claude 或 codex 就能用。",
     "env": {
       "title": "检查运行环境",
       "description": "Claude Code 和 Codex 需要 Node.js；Windows 上 Claude Code 还需要 Git。点「一键全部安装」自动装好缺的东西，不需要管理员权限。",
@@ -5176,8 +5176,17 @@
         "git": "正在安装 Git…",
         "registry": "正在切换镜像…",
         "npmPrefix": "正在修复 npm 权限…",
-        "tools": "正在安装 Claude Code / Codex…"
-      }
+        "tools": "正在安装 Claude Code / Codex…",
+        "conflicts": "正在清除环境变量…"
+      },
+      "upgrade": "升级",
+      "nodeOutdated": "版本过低，最新版 Claude Code 需要 Node.js {{min}} 以上",
+      "conflicts": "环境变量冲突",
+      "conflictsHint": "系统里设置了 {{names}}，会覆盖或干扰 ccshift 写入的 Key",
+      "conflictsClear": "一键清除",
+      "conflictsCleared": "已清除冲突的环境变量",
+      "conflictsBackup": "原值已备份到 {{path}}",
+      "conflictsFailed": "清除环境变量失败"
     },
     "api": {
       "title": "填写 API 信息",
@@ -5203,7 +5212,12 @@
       "codexModelHint": "留空使用默认模型；测试连接后可从下拉中选择",
       "submitHint": "会新建供应商并立即启用，原有配置会自动备份",
       "submit": "一键配置",
-      "saveFailed": "写入配置失败"
+      "saveFailed": "写入配置失败",
+      "desktopMissing": "没有检测到 Claude 桌面版，安装后再回来勾选",
+      "desktopHint": "Claude 桌面版只支持 Anthropic 格式的接口（和 Claude Code 同一个地址），模型菜单里的 Sonnet / Opus / Haiku 会原名发给你的 API。",
+      "conflictWarning": "检测到系统环境变量 {{names}}，它们会覆盖这次写入的配置，导致用的还是旧 Key 或旧地址。建议清除（原值会自动备份）。",
+      "conflictIgnore": "仍然继续",
+      "conflictClear": "清除并继续"
     },
     "done": {
       "title": "配置完成",
@@ -5213,7 +5227,9 @@
       "viewProviders": "查看供应商",
       "openTerminal": "打开终端",
       "terminalFailed": "打开终端失败",
-      "again": "再配置一个"
+      "again": "再配置一个",
+      "desktopHint": "完全退出并重新打开 Claude 桌面版后生效",
+      "restartHint": "已经打开的终端、VS Code / Cursor 读不到新配置，请关掉后重新打开。"
     },
     "advanced": {
       "block": "界面模式",
@@ -5222,6 +5238,31 @@
     },
     "about": {
       "basedOn": "基于开源项目"
+    },
+    "restore": {
+      "block": "还原",
+      "label": "一键还原",
+      "description": "不再使用时，撤销 ccshift 对 Claude Code、Codex 和电脑环境做的改动",
+      "button": "还原…",
+      "title": "一键还原",
+      "intro": "选择还原的程度。卸载 ccshift 之前建议先做一次，否则 Claude Code / Codex 会继续使用这里配置的 API。",
+      "config": "只还原配置",
+      "full": "彻底清理",
+      "itemSwitch": "Claude Code、Claude 桌面版、Codex 切回使用 ccshift 之前的配置；之前没有配置的切回官方",
+      "itemOnboarding": "恢复 Claude Code 的首次登录引导（如果是 ccshift 跳过的）",
+      "itemConfigToo": "包括「只还原配置」的全部内容",
+      "itemUninstall": "卸载 Claude Code 和 Codex",
+      "itemNode": "删除 ccshift 安装的 Node.js（{{path}}）",
+      "itemGit": "删除 ccshift 安装的 Git（{{path}}）",
+      "itemRegistry": "npm 下载源恢复默认",
+      "itemPolicy": "恢复 PowerShell 脚本限制",
+      "itemPrefix": "npm 全局安装目录恢复默认",
+      "keepNote": "你自己安装的 Node.js、Git 不会被删除；供应商列表保留，之后想用可以再切回来。",
+      "confirmConfig": "还原配置",
+      "confirmFull": "彻底清理",
+      "done": "已还原",
+      "restartHint": "请关掉已经打开的终端和 VS Code 后重新打开",
+      "partial": "部分项目没有还原成功"
     }
   }
 }

@@ -6,7 +6,7 @@ ccshift 基于 [CC Switch](https://github.com/farion1231/cc-switch)（MIT 协议
 
 | 项目 | 原版 CC Switch | ccshift |
 | --- | --- | --- |
-| 支持的应用 | 14 个（Gemini、OpenCode、Kimi…） | 只有 Claude Code、Codex |
+| 支持的应用 | 14 个（Gemini、OpenCode、Kimi…） | Claude Code、Claude 桌面版、Codex（Codex 桌面版读同一份配置，自动生效） |
 | 首次打开 | 供应商列表 | **快速配置向导** |
 | 环境安装 | 只装 CLI | 「一键全部安装」：Node.js、Git（仅 Windows）从国内镜像 npmmirror 下载到用户目录，不需要管理员、不依赖 winget / Homebrew；国内时区自动切 npm 国内镜像；Windows 自动放开 PowerShell 脚本限制；macOS / Linux 自动修复 npm 全局目录权限 |
 | 配置第三方 API | 选预设 / 手填 JSON | 填「地址 + Key」→ 测试连接 → 一键写入两个工具，地址格式（`/v1`）自动修正 |
@@ -47,6 +47,17 @@ ccshift 基于 [CC Switch](https://github.com/farion1231/cc-switch)（MIT 协议
 ## 数据目录
 
 ccshift 和原版共用 `~/.cc-switch` 数据目录（供应商列表、设置）。好处是用过原版的客户打开 ccshift 就能看到原来的配置；如果客户同时装了更新版本的原版 CC Switch，数据库版本可能更高，ccshift 会提示需要升级。
+
+## 各种客户情况怎么处理
+
+| 情况 | ccshift 的处理 |
+| --- | --- |
+| 已经装好环境 | 检测到的直接打勾，不重复安装；原有 Claude Code / Codex 配置首次启动时备份成「default」供应商 |
+| Node.js 低于 22 | 标红「版本过低」，一键升级：用户目录 / 没装 → 镜像 zip 安装；装在系统目录的旧版 → 镜像官方 MSI 覆盖（会弹管理员确认）；nvm 管理的 → 不动，提示 `nvm install lts` |
+| 自己设过环境变量（ANTHROPIC_* / OPENAI_*） | 向导第 1 步显示「环境变量冲突」可一键清除；点「一键配置」前再查一次，有冲突先提醒。清除前自动备份 |
+| 用 Claude 桌面版 | 快速配置可勾选，只支持 Anthropic 格式接口；没装桌面版时选项置灰 |
+| 不再使用 | 设置 → 通用 →「一键还原」：只还原配置，或彻底清理（卸载 CLI、删除 ccshift 装的 Node / Git、恢复 npm 源和 PowerShell 策略）。只删带 `.ccshift-installed` 标记的目录，客户自己装的不碰；改动记录在 `~/.ccshift/env-changes.json` |
+| 配置后「没生效」 | 完成页提醒：已打开的终端和 VS Code 要关掉重开 |
 
 ## 一键安装装到了哪里（售后排查用）
 

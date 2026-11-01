@@ -1,12 +1,13 @@
 import type { Provider } from "@/types";
 import { generateThirdPartyConfig } from "@/config/codexProviderPresets";
+import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
 
 /**
  * 快速配置向导的纯函数：地址规整、按应用生成供应商配置。
  * 和「添加供应商」里自定义供应商写出来的结构一致，之后在供应商页照常编辑。
  */
 
-export type SetupApp = "claude" | "codex";
+export type SetupApp = "claude" | "claude-desktop" | "codex";
 
 export interface SetupInput {
   name: string;
@@ -87,6 +88,34 @@ export function buildSetupProvider(
     };
   }
 
+  if (app === "claude-desktop") {
+    // 直连：Claude Desktop 把模型菜单里的 Sonnet / Opus / Haiku 原名发给上游，
+    // 只支持 Anthropic 格式接口（和 Claude Code 同一个地址）
+    const routes = [
+      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet,
+      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.opus,
+      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.haiku,
+    ];
+    return {
+      name: input.name,
+      settingsConfig: {
+        env: {
+          ANTHROPIC_BASE_URL: claudeBaseUrl(input.baseUrl),
+          ANTHROPIC_AUTH_TOKEN: apiKey,
+        },
+      },
+      category: "custom",
+      createdAt: Date.now(),
+      meta: {
+        claudeDesktopMode: "direct",
+        apiFormat: "anthropic",
+        claudeDesktopModelRoutes: Object.fromEntries(
+          routes.map((route) => [route, { model: route }]),
+        ),
+      },
+    };
+  }
+
   const model = input.codexModel?.trim();
   return {
     name: input.name,
@@ -109,7 +138,7 @@ export function buildSetupProvider(
 export function filterModelsFor(app: SetupApp, ids: string[]): string[] {
   const lower = (id: string) => id.toLowerCase();
   const matched =
-    app === "claude"
+    app !== "codex"
       ? ids.filter((id) => lower(id).includes("claude"))
       : ids.filter((id) => /gpt|codex|^o\d/.test(lower(id)));
   return matched.length > 0 ? matched : ids;

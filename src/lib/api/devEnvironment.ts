@@ -14,6 +14,31 @@ export interface DevEnvironmentStatus {
 }
 
 export type DevDependency = "node" | "git";
+
+/** 一键还原会撤销的环境改动（后端 preview_dev_cleanup） */
+export interface DevCleanupPreview {
+  /** ccshift 装的 Node.js 目录；没装过为 null */
+  nodeDir: string | null;
+  /** ccshift 装的 Git 目录（仅 Windows） */
+  gitDir: string | null;
+  npmRegistry: boolean;
+  powershellPolicy: boolean;
+  npmPrefix: boolean;
+}
+
+/** 最新版 Claude Code 的 package.json 要求 node >= 22 */
+export const MIN_NODE_MAJOR = 22;
+
+/** "v20.11.1" → 20；读不出来时为 null */
+export function nodeMajor(version: string | null | undefined): number | null {
+  const match = version?.trim().match(/^v?(\d+)\./);
+  return match ? Number(match[1]) : null;
+}
+
+export function isNodeOutdated(version: string | null | undefined): boolean {
+  const major = nodeMajor(version);
+  return major !== null && major < MIN_NODE_MAJOR;
+}
 export type DevEnvironmentIssue = "powershellPolicy" | "npmPrefix";
 
 /** 国内 npm 镜像（npmmirror，原淘宝镜像） */
@@ -32,6 +57,12 @@ export const devEnvironmentApi = {
   },
   setNpmRegistry(registry: string): Promise<void> {
     return invoke("set_npm_registry", { registry });
+  },
+  previewCleanup(): Promise<DevCleanupPreview> {
+    return invoke("preview_dev_cleanup");
+  },
+  cleanup(): Promise<void> {
+    return invoke("cleanup_dev_environment");
   },
 };
 

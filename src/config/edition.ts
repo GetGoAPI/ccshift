@@ -27,11 +27,11 @@ export function isEditionApp(app: string): boolean {
 }
 
 /**
- * 是否检查应用更新。cc-switch 的更新源和签名公钥指向原作者：开着的话，
- * 用户一点「更新」就会被换回原版 CC Switch。搭好自己的更新源
- * （tauri.conf.json 的 plugins.updater）之后再改成 true。
+ * 是否检查应用更新。更新源是本仓库 GitHub Releases 里的 latest.json
+ * （tauri.conf.json 的 plugins.updater），由 release.yml 用 ccshift 自己的密钥签名生成。
+ * 签名私钥丢了就再也发不了能自动安装的更新，务必备份。
  */
-export const UPDATE_CHECK_ENABLED = false;
+export const UPDATE_CHECK_ENABLED = true;
 
 // ─── 高级模式 ───────────────────────────────────────────────────────────────
 // 存在本机 localStorage：只影响界面露出哪些入口，不改任何配置文件。

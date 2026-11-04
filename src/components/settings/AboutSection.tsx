@@ -74,7 +74,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   }, []);
 
   const handleOpenGithub = useCallback(() => {
-    void settingsApi.openExternal("https://github.com/farion1231/cc-switch");
+    void settingsApi.openExternal("https://github.com/GetGoAPI/ccshift");
   }, []);
 
   const handleCheckUpdate = useCallback(async () => {

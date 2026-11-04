@@ -4230,7 +4230,8 @@
     },
     "needsAttention": "需要处理",
     "back": "返回",
-    "setup": "快速配置"
+    "setup": "快速配置",
+    "guide": "费用科普"
   },
   "appsPage": {
     "showInSidebar": "在侧栏显示 {{name}}",

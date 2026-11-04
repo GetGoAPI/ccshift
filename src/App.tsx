@@ -93,6 +93,7 @@ import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
 import { RefreshAllQuotaButton } from "@/components/settings/auth/RefreshAllQuotaButton";
 import { AppsPage } from "@/components/apps/AppsPage";
 import { QuickSetupPage } from "@/components/setup/QuickSetupPage";
+import { CostGuidePage } from "@/components/guide/CostGuidePage";
 import {
   checkToolUpdatesInBackground,
   useToolUpdatesAvailable,
@@ -1681,6 +1682,8 @@ function App() {
     switch (currentView) {
       case "setup":
         return <QuickSetupPage onOpenApp={selectApp} />;
+      case "guide":
+        return <CostGuidePage />;
       case "usage":
         return (
           <UsagePage

@@ -16,6 +16,7 @@ import {
   KeyRound,
   Layers,
   LayoutGrid,
+  Lightbulb,
   Route,
   Server,
   Settings,
@@ -321,6 +322,13 @@ function MainDirectory({
           icon={Sparkles}
           label={t("nav.setup")}
           onClick={() => onSelectPage("setup")}
+        />
+        <NavItem
+          collapsed={collapsed}
+          selected={view === "guide"}
+          icon={Lightbulb}
+          label={t("nav.guide")}
+          onClick={() => onSelectPage("guide")}
         />
         <div
           role="group"

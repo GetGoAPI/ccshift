@@ -4201,7 +4201,8 @@
     },
     "needsAttention": "Dikkat edilmesi gerekiyor",
     "back": "Geri",
-    "setup": "Quick Setup"
+    "setup": "Quick Setup",
+    "guide": "Maliyet rehberi"
   },
   "appsPage": {
     "showInSidebar": "Kenar çubuğunda {{name}}'yi göster",

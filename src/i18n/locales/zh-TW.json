@@ -4231,7 +4231,8 @@
     },
     "needsAttention": "需要處理",
     "back": "返回",
-    "setup": "快速配置"
+    "setup": "快速配置",
+    "guide": "費用科普"
   },
   "appsPage": {
     "showInSidebar": "在側欄顯示 {{name}}",

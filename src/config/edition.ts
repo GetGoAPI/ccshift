@@ -82,7 +82,7 @@ export function useAdvancedMode(): [boolean, (value: boolean) => void] {
  * 新手模式下还能进的全局页。侧栏的「快速配置」「应用」「设置」单独放，
  * 这里列的是侧栏中段那一组（MCP、Skills、提示词、会话、授权、用量）里保留的。
  */
-const SIMPLE_MODE_PAGES: readonly string[] = ["setup", "apps"];
+const SIMPLE_MODE_PAGES: readonly string[] = ["setup", "guide", "apps"];
 
 export function isPageInSimpleMode(page: string): boolean {
   return SIMPLE_MODE_PAGES.includes(page);

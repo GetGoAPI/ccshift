@@ -4230,7 +4230,8 @@
     },
     "needsAttention": "Needs attention",
     "back": "Back",
-    "setup": "Quick Setup"
+    "setup": "Quick Setup",
+    "guide": "Cost guide"
   },
   "appsPage": {
     "showInSidebar": "Show {{name}} in the sidebar",

@@ -4230,7 +4230,8 @@
     },
     "needsAttention": "対応が必要",
     "back": "戻る",
-    "setup": "Quick Setup"
+    "setup": "Quick Setup",
+    "guide": "料金ガイド"
   },
   "appsPage": {
     "showInSidebar": "{{name}} をサイドバーに表示",

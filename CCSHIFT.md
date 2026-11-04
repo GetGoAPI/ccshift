@@ -40,7 +40,7 @@ ccshift 基于 [CC Switch](https://github.com/farion1231/cc-switch)（MIT 协议
 已开启。ccshift 启动时读取 `https://github.com/GetGoAPI/ccshift/releases/latest/download/latest.json`，有新版本就提示，客户在「设置 → 关于」里一键更新。
 
 - **发新版**：推一个 `v` 开头的标签（如 `git tag v1.0.2 && git push origin v1.0.2`）。`release.yml` 会打包、签名、生成 `latest.json`，一起发布到 GitHub Releases。版本号只能往上加。
-- **签名密钥**：私钥在本机 `~/.tauri/ccshift.key`，同时存在 GitHub 仓库 Settings → Secrets 的 `TAURI_SIGNING_PRIVATE_KEY`（`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 留空）；公钥在 `tauri.conf.json` 的 `plugins.updater.pubkey`。
+- **签名密钥**：私钥在本机 `~/.tauri/ccshift.key`，同时存在 GitHub 仓库 Settings → Secrets 的 `KEY`（也认 `TAURI_SIGNING_PRIVATE_KEY`）（`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 留空）；公钥在 `tauri.conf.json` 的 `plugins.updater.pubkey`。
 - **私钥务必备份**。丢了就再也发不出已安装用户能自动安装的更新，只能让所有人手动重装。
 - **v1.0.1 及更早的版本没有更新功能**，这些用户需要手动下载一次新版，之后才能自动更新。
 - 本机打包（`pnpm build`）也要签名：先设置环境变量 `TAURI_SIGNING_PRIVATE_KEY` 为私钥文件内容，否则打包会失败。

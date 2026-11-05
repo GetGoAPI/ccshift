@@ -237,6 +237,10 @@
             </Component>
             <Component Id="Path" Guid="{{path_component_guid}}" Win64="$(var.Win64)">
                 <File Id="Path" Source="{{main_binary_path}}" KeyPath="no" Checksum="yes"/>
+                <!-- 上游 CC Switch 是 MIT 协议：LICENSE 随安装包分发。放在 Path 组件里借用 HKCU 注册表 KeyPath；
+                     不能用 tauri 的 bundle.resources：它生成的组件以文件为 KeyPath，按用户安装会触发 ICE38。
+                     路径相对生成的 main.wxs（target/release/wix/x64） -->
+                <File Id="LicenseFile" Source="$(sys.SOURCEFILEDIR)..\..\..\..\..\LICENSE" Name="LICENSE" KeyPath="no"/>
                 <RegistryValue Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="PathComponent" Type="integer" Value="1" KeyPath="yes" />
                 {{#each file_associations as |association| ~}}
                 {{#each association.ext as |ext| ~}}

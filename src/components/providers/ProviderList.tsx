@@ -89,6 +89,8 @@ interface ProviderListProps {
   onConfigureUsage?: (provider: Provider) => void;
   onOpenWebsite: (url: string) => void;
   onOpenTerminal?: (provider: Provider) => void;
+  /** 「⋯ → 智商测试」：跳到智商测试页并预选这张卡（仅高级模式传） */
+  onIqTest?: (provider: Provider) => void;
   onCreate?: () => void;
   /** OpenClaw 的默认模型、Hermes 的当前供应商 */
   onSetAsDefault?: (provider: Provider, modelId?: string) => void;
@@ -119,6 +121,7 @@ export function ProviderList({
   onConfigureUsage,
   onOpenWebsite,
   onOpenTerminal,
+  onIqTest,
   onCreate,
   onSetAsDefault,
   switchMode,
@@ -559,6 +562,7 @@ export function ProviderList({
       onOpenTerminal={appId === "agy" ? undefined : onOpenTerminal}
       onTest={handleTest}
       isTesting={isChecking(provider.id)}
+      onIqTest={onIqTest}
     />
   );
 
@@ -722,6 +726,7 @@ interface SortableProviderCardProps {
   onOpenTerminal?: (provider: Provider) => void;
   onTest?: (provider: Provider) => void;
   isTesting: boolean;
+  onIqTest?: (provider: Provider) => void;
 }
 
 function SortableProviderCard(props: SortableProviderCardProps) {

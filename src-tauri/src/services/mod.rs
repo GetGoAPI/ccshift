@@ -12,6 +12,7 @@ pub mod env_manager;
 pub mod kimi_oauth;
 pub mod mcp;
 pub mod model_fetch;
+pub mod model_iq_test;
 pub mod model_pricing;
 pub mod omo;
 pub mod pi_prompt_files;

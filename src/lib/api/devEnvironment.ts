@@ -15,6 +15,8 @@ export interface DevEnvironmentStatus {
 
 export type DevDependency = "node" | "git";
 
+export type ClaudeDesktopAppStatus = "installed" | "legacy" | "missing";
+
 /** 一键还原会撤销的环境改动（后端 preview_dev_cleanup） */
 export interface DevCleanupPreview {
   /** ccshift 装的 Node.js 目录；没装过为 null */
@@ -54,6 +56,17 @@ export const devEnvironmentApi = {
   },
   fix(issue: DevEnvironmentIssue): Promise<void> {
     return invoke("fix_dev_environment", { issue });
+  },
+  /** 从官方渠道安装 Claude Desktop（Windows 装官方 MSIX，macOS 读官方更新源），装完会打开它 */
+  /**
+   * 桌面版程序本身的安装状态（不看配置 / 数据目录，卸载后能如实显示没装）。
+   * legacy：Windows 旧安装器版，用不了 Cowork，需要重装成 MSIX。
+   */
+  claudeDesktopAppStatus(): Promise<ClaudeDesktopAppStatus> {
+    return invoke("claude_desktop_app_status");
+  },
+  installClaudeDesktop(): Promise<void> {
+    return invoke("install_claude_desktop");
   },
   setNpmRegistry(registry: string): Promise<void> {
     return invoke("set_npm_registry", { registry });

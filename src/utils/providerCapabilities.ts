@@ -137,6 +137,22 @@ export function supportsConnectivityCheck(
   );
 }
 
+/**
+ * 智商测试（真实请求，见 services/model_iq_test.rs）：只支持 Claude Code / Codex 的
+ * API Key 供应商；官方登录、Copilot、Codex / xAI OAuth 这类托管账号不支持。
+ */
+export function supportsIqTest(
+  appId: AppId,
+  provider: Pick<Provider, "category" | "meta">,
+): boolean {
+  if (appId !== "claude" && appId !== "codex") return false;
+  if (provider.category === "official") return false;
+  const type = provider.meta?.providerType;
+  return (
+    type !== "github_copilot" && type !== "codex_oauth" && type !== "xai_oauth"
+  );
+}
+
 /** Keep the UI capability rule aligned with the Rust takeover policy. */
 export function supportsOfficialProxyTakeover(
   appId: AppId,

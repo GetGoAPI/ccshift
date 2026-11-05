@@ -533,6 +533,175 @@ pub async fn restart_claude_desktop() -> Result<(), String> {
     .map_err(|e| format!("restart task join error: {e}"))?
 }
 
+// ─── 安装 Claude Desktop（只从官方渠道）─────────────────────────────────────
+//
+// 安装包 Windows 约 290MB、macOS 约 390MB，托管在 downloads.claude.ai（谷歌云存储），国内不开代理大概率下不动；
+// 失败时前端把按钮换成「去官网下载」。不做镜像：桌面版是 Anthropic 的专有软件。
+// 装完顺手打开一次：第 3 步看的数据目录要它首次启动才建。
+
+/// Windows：装官方 MSIX（商店同款）。不用 winget：winget 上的 Anthropic.Claude 是旧的
+/// Squirrel 安装器版且版本落后，装上后提示「Reinstall the desktop app to access Cowork」。
+/// - 地址：claude.ai 的 latest 跳转（307 到 downloads.claude.ai 上带版本号的 .msix）；
+/// - 校验：Authenticode 签名有效且签发给 Anthropic，否则不装；
+/// - 安装：Add-AppxPackage 只这一步提权（包里有 Cowork 用的系统服务，Windows 要求管理员），
+///   会弹一次 UAC；客户点「否」时给出能看懂的提示；
+/// - 收尾：机器上还有 Squirrel 旧版（%LOCALAPPDATA%\AnthropicClaude）就把它卸掉，免得两份并存。
+#[cfg(target_os = "windows")]
+const PS_INSTALL_DESKTOP: &str = r#"
+try {
+  $tmp = Join-Path $env:TEMP ("ccshift_claude_" + [Guid]::NewGuid().ToString('N') + '.msix')
+  $url = "https://claude.ai/api/desktop/win32/$arch/msix/latest/redirect"
+  try {
+    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp -TimeoutSec 1800
+  } catch {
+    throw "下载失败，可能是网络连不上官方下载地址，请开启网络代理后重试（$($_.Exception.Message)）"
+  }
+  try {
+    $sig = Get-AuthenticodeSignature -LiteralPath $tmp
+    if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Anthropic') {
+      throw "安装包签名校验失败（$($sig.Status)），已停止安装"
+    }
+    # 包里带系统服务（Cowork 用），Windows 要求管理员才能装（否则 0x80073D28）。
+    # 只把这一步提权：弹一次 UAC，提权进程把错误写进日志文件再由这里读回来。
+    $log = "$tmp.log"
+    $inner = "`$ErrorActionPreference = 'Stop'; try { Add-AppxPackage -Path '$($tmp.Replace("'", "''"))' -ForceApplicationShutdown; exit 0 } " +
+      "catch { `$_.Exception.Message | Out-File -LiteralPath '$($log.Replace("'", "''"))' -Encoding utf8; exit 1 }"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
+    try {
+      $proc = Start-Process -FilePath powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden `
+        -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded
+    } catch {
+      throw '需要在弹出的 Windows 管理员确认里点「是」才能安装，请重试'
+    }
+    if ($proc.ExitCode -ne 0) {
+      $detail = if (Test-Path $log) { (Get-Content -LiteralPath $log -Raw -Encoding UTF8).Trim() } else { "错误码 $($proc.ExitCode)" }
+      Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+      throw "安装失败：$detail"
+    }
+  } finally {
+    Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+  }
+
+  $pkg = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $pkg) { throw '安装程序已运行，但没有找到 Claude 桌面版' }
+
+  $squirrel = Join-Path $env:LOCALAPPDATA 'AnthropicClaude'
+  $update = Join-Path $squirrel 'Update.exe'
+  if (Test-Path $update) {
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -like "$squirrel\*" } |
+      Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Process -FilePath $update -ArgumentList '--uninstall', '-s' -Wait -ErrorAction SilentlyContinue
+  }
+
+  $appId = (Get-AppxPackageManifest $pkg).Package.Applications.Application | Select-Object -First 1 -ExpandProperty Id
+  Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!$appId"
+} catch {
+  [Console]::Error.WriteLine("安装 Claude 桌面版失败：" + $_.Exception.Message)
+  exit 1
+}
+"#;
+
+/// macOS：读官方更新源 RELEASES.json 拿到最新 universal 包（Apple 芯片 / Intel 通用），
+/// 校验是 Anthropic 的 Developer ID 签名后放进「应用程序」（没写权限就放 ~/Applications）。
+/// curl 下载的文件不带隔离属性，首次打开不会弹「来自互联网」的确认。
+#[cfg(target_os = "macos")]
+const SH_INSTALL_DESKTOP: &str = r#"
+set -e
+feed=https://downloads.claude.ai/releases/darwin/universal/RELEASES.json
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+json=$(curl -fsSL --retry 2 --connect-timeout 15 "$feed") || { echo "无法访问官方下载地址，请开启网络代理后重试" >&2; exit 1; }
+cur=$(printf '%s' "$json" | sed -n 's/.*"currentRelease":"\([^"]*\)".*/\1/p')
+url=$(printf '%s' "$json" | grep -o "https://downloads.claude.ai/releases/darwin/universal/$cur/[^\"]*\.zip" | head -1)
+[ -n "$url" ] || { echo "官方更新源格式变了，请到官网下载安装" >&2; exit 1; }
+curl -fL --retry 2 --connect-timeout 15 -o "$tmp/Claude.zip" "$url" || { echo "下载失败，请开启网络代理后重试" >&2; exit 1; }
+ditto -x -k "$tmp/Claude.zip" "$tmp/x"
+app="$tmp/x/Claude.app"
+[ -d "$app" ] || { echo "安装包里没有 Claude.app" >&2; exit 1; }
+codesign --verify --deep --strict "$app" || { echo "安装包签名校验失败，已停止安装" >&2; exit 1; }
+codesign -dv --verbose=2 "$app" 2>&1 | grep -q "Developer ID Application: Anthropic" || { echo "安装包不是 Anthropic 签名，已停止安装" >&2; exit 1; }
+dest=/Applications
+if [ ! -w "$dest" ]; then dest="$HOME/Applications"; mkdir -p "$dest"; fi
+rm -rf "$dest/Claude.app"
+ditto "$app" "$dest/Claude.app"
+open "$dest/Claude.app"
+"#;
+
+/// 桌面版程序本身的安装状态。`get_claude_desktop_status().installed` 是推断值（数据目录在、
+/// 或接入过就算），卸载后配置还留着时它仍是 true，装机那一行要看真实安装：
+/// - `installed`：Windows 商店版（MSIX，当前用户的包注册表里有 `Claude_*__pzs8sxrjxfjjc`，
+///   Anthropic 的发布者 ID）；macOS 的 `/Applications` 或 `~/Applications` 里有 Claude.app；
+/// - `legacy`：只有 Windows 旧安装器版（`%LOCALAPPDATA%\AnthropicClaude`），用不了 Cowork，要重装成 MSIX；
+/// - `missing`：没装。
+#[tauri::command]
+pub fn claude_desktop_app_status() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
+        const PACKAGES: &str = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
+        let msix = RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey(PACKAGES)
+            .map(|key| {
+                key.enum_keys()
+                    .filter_map(Result::ok)
+                    .any(|name| name.starts_with("Claude_") && name.ends_with("__pzs8sxrjxfjjc"))
+            })
+            .unwrap_or(false);
+        if msix {
+            return "installed";
+        }
+        let squirrel = std::env::var_os("LOCALAPPDATA")
+            .map(|dir| {
+                std::path::Path::new(&dir)
+                    .join("AnthropicClaude")
+                    .join("claude.exe")
+                    .is_file()
+            })
+            .unwrap_or(false);
+        if squirrel {
+            "legacy"
+        } else {
+            "missing"
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let home = crate::config::get_home_dir();
+        let found = [
+            std::path::PathBuf::from("/Applications/Claude.app"),
+            home.join("Applications").join("Claude.app"),
+        ]
+        .iter()
+        .any(|bundle| bundle.is_dir());
+        if found {
+            "installed"
+        } else {
+            "missing"
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        "missing"
+    }
+}
+
+#[tauri::command]
+pub async fn install_claude_desktop() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let command_line = powershell_batch(PS_INSTALL_DESKTOP)?;
+    #[cfg(target_os = "macos")]
+    let command_line = SH_INSTALL_DESKTOP.to_string();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return Err("Claude 桌面版只有 Windows 和 macOS 版本".to_string());
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    tauri::async_runtime::spawn_blocking(move || {
+        run_script(command_line, "ccshift_install_desktop")
+    })
+    .await
+    .map_err(|e| format!("desktop install task join error: {e}"))?
+}
+
 // ─── 命令 ──────────────────────────────────────────────────────────────────
 
 fn run_script(command_line: String, label: &'static str) -> Result<(), String> {

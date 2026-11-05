@@ -276,7 +276,40 @@
     "formSubtitleStack": "{{app}}（聚合模式）",
     "editCurrentNoticeFile": "這是正在使用的供應商。儲存後會立即寫進",
     "editCurrentNoticeFileEnd": "，下一次請求生效。",
-    "editCurrentNotice": "這是正在使用的供應商。儲存後立即生效，下一次請求就用新的設定。"
+    "editCurrentNotice": "這是正在使用的供應商。儲存後立即生效，下一次請求就用新的設定。",
+    "iqTest": {
+      "menu": "智商测试（画鹈鹕）",
+      "pageIntro": "用供应商的真实地址和密钥发一次请求，让模型画「骑自行车的鹈鹕」SVG。强模型画得结构合理、一眼认得出，弱模型或被掉包的上游画得乱七八糟甚至画不出来。适合用来对比、筛选上游货源。每次会消耗少量额度。此页只在高级模式显示。",
+      "appLabel": "应用",
+      "noProviders": "还没有可以测试的供应商",
+      "noProvidersBody": "先添加 API Key 方式的供应商。官方登录、OAuth 账号不支持。",
+      "promptMode": "题目",
+      "modePelican": "鹈鹕骑车（经典）",
+      "modeRandom": "随机题（防刷题）",
+      "modeCustom": "自定义",
+      "reroll": "换一题",
+      "model": "测试的模型",
+      "running": "模型正在作画… 已用 {{seconds}} 秒（一般 20～90 秒）",
+      "failed": "测试失败",
+      "firstToken": "首字耗时",
+      "total": "总耗时",
+      "outputTokens": "输出 tokens",
+      "speed": "输出速度",
+      "reportedModel": "上游返回的模型：",
+      "mismatchTitle": "返回的模型和请求的不一致",
+      "mismatchBody": "请求的是 {{requested}}，上游说自己是 {{reported}}。可能是模型映射，也可能被换成了别的模型，结合下面的图判断。",
+      "truncated": "输出被截断了，图可能不完整",
+      "noSvg": "回复里没有找到完整的 SVG",
+      "noSvgBody": "强模型基本都能直接给出 SVG 代码。下面是模型的原始回复。",
+      "howToJudge": "怎么看结果",
+      "howToJudgeBody": "强模型：动物特征明显（鹈鹕有大长嘴和喉囊），稳稳坐在车上，脚踩踏板、手扶车把，车有两个轮子、车架结构合理。弱模型或被掉包：几个圆圈拼凑、动物飘在半空、车轮错位，甚至画不出图。",
+      "showRaw": "查看原始回复",
+      "hideRaw": "收起原始回复",
+      "copySvg": "复制 SVG",
+      "copied": "已复制 SVG 代码",
+      "start": "开始测试",
+      "retry": "再测一次"
+    }
   },
   "claudeCode": {
     "needsRouting": "需要路由",
@@ -4232,7 +4265,8 @@
     "needsAttention": "需要處理",
     "back": "返回",
     "setup": "快速配置",
-    "guide": "費用科普"
+    "guide": "費用科普",
+    "iqTest": "智商測試"
   },
   "appsPage": {
     "showInSidebar": "在側欄顯示 {{name}}",
@@ -5188,7 +5222,16 @@
       "conflictsClear": "一键清除",
       "conflictsCleared": "已清除冲突的环境变量",
       "conflictsBackup": "原值已备份到 {{path}}",
-      "conflictsFailed": "清除环境变量失败"
+      "conflictsFailed": "清除环境变量失败",
+      "desktop": "Claude 桌面版（可选）",
+      "desktopHint": "想用桌面版聊天、写文档再装；从 Anthropic 官方下载，约 300～400MB",
+      "desktopInstallingHint": "正在从官方下载安装（几百 MB，需要几分钟）。Windows 上中途会弹出管理员确认，请点「是」",
+      "desktopInstalled": "已安装",
+      "desktopFailed": "Claude 桌面版安装失败",
+      "desktopFailedHint": "自动安装没成功（常见原因：国内网络连不上官方下载地址，可开启代理后重试），可以点「去官网下载」手动安装",
+      "desktopDone": "Claude 桌面版已安装并打开",
+      "desktopLegacyHint": "版本较旧，部分新功能用不了，建议更新（聊天记录会保留）",
+      "reinstall": "更新"
     },
     "api": {
       "title": "填写 API 信息",

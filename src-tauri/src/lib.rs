@@ -1813,6 +1813,7 @@ pub fn run() {
             commands::get_usage_data_sources,
             // Stream health check
             commands::stream_check_provider,
+            commands::model_iq_test_provider,
             // Session manager
             commands::list_sessions,
             commands::get_session_messages,
@@ -1832,6 +1833,8 @@ pub fn run() {
             commands::preview_dev_cleanup,
             commands::cleanup_dev_environment,
             commands::restart_claude_desktop,
+            commands::install_claude_desktop,
+            commands::claude_desktop_app_status,
             commands::set_npm_registry,
             commands::prepare_tool_uninstall,
             commands::probe_tool_installations,

@@ -8,7 +8,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { settingsApi } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { providersApi, settingsApi } from "@/lib/api";
 import { checkEnvConflicts, deleteEnvVars } from "@/lib/api/env";
 import type { EnvConflict } from "@/types/env";
 import {
@@ -35,6 +36,7 @@ const CLI_APPS = ["claude", "codex"] as const;
 type CliApp = (typeof CLI_APPS)[number];
 
 const NODE_DOWNLOAD_URL = "https://nodejs.org/zh-cn/download";
+const CLAUDE_DESKTOP_DOWNLOAD_URL = "https://claude.ai/download";
 const GIT_DOWNLOAD_URL = "https://git-scm.com/downloads";
 
 const DEPENDENCY_LABEL: Record<DevDependency, string> = {
@@ -49,7 +51,8 @@ type EnvTask =
   | "registry"
   | "npmPrefix"
   | "conflicts"
-  | "tools";
+  | "tools"
+  | "desktop";
 
 function StatusIcon({ ok, busy }: { ok: boolean | null; busy?: boolean }) {
   if (busy) return <Loader2 className="h-4 w-4 animate-spin text-fg-3" />;
@@ -115,6 +118,16 @@ export function EnvironmentStep() {
   );
   // 系统环境变量 / shell 启动文件里的 ANTHROPIC_* / OPENAI_*：会盖掉或干扰写入的 Key
   const [conflicts, setConflicts] = useState<EnvConflict[]>([]);
+  // Claude Desktop 是可选项：不进「一键全部安装」（安装包几百 MB，不是每个客户都用）
+  const queryClient = useQueryClient();
+  // 看程序本身在不在：getClaudeDesktopStatus().installed 把「接入过」也算作已装，
+  // 卸载后配置还在时会一直显示已安装
+  const { data: desktopApp, refetch: refetchDesktop } = useQuery({
+    queryKey: ["claudeDesktopAppStatus"],
+    queryFn: () => devEnvironmentApi.claudeDesktopAppStatus(),
+  });
+  const desktopInstalled = desktopApp === "installed";
+  const [desktopFailed, setDesktopFailed] = useState(false);
 
   const refresh = useCallback(async () => {
     setChecking(true);
@@ -141,7 +154,7 @@ export function EnvironmentStep() {
   }, [refresh]);
 
   const recheckAll = async () => {
-    await Promise.all([refresh(), tools.checkForUpdates()]);
+    await Promise.all([refresh(), tools.checkForUpdates(), refetchDesktop()]);
   };
 
   /** 跑一个环境操作：失败时弹提示并返回 false，不往外抛 */
@@ -183,6 +196,38 @@ export function EnvironmentStep() {
     );
     if (!ok) setFailed((prev) => ({ ...prev, [name]: true }));
     return ok;
+  };
+
+  /**
+   * 装 Claude Desktop：失败一次后按钮改成「去官网下载」。装完它会被打开，
+   * 数据目录要等它启动后才建，所以轮询几次状态，第 3 步的勾选也跟着更新。
+   */
+  const installDesktop = async () => {
+    if (desktopFailed) {
+      await settingsApi.openExternal(CLAUDE_DESKTOP_DOWNLOAD_URL);
+      return;
+    }
+    const ok = await runTask(
+      "desktop",
+      () => devEnvironmentApi.installClaudeDesktop(),
+      t("setup.env.desktopFailed"),
+      t("setup.env.desktopDone"),
+    );
+    if (!ok) {
+      setDesktopFailed(true);
+      return;
+    }
+    await refetchDesktop();
+    // 第 3 步的「Claude 桌面版」勾选看 claudeDesktopStatus：数据目录等它启动后才建
+    for (let i = 0; i < 10; i++) {
+      const status = await queryClient.fetchQuery({
+        queryKey: ["claudeDesktopStatus"],
+        queryFn: () => providersApi.getClaudeDesktopStatus(),
+        staleTime: 0,
+      });
+      if (status.installed) break;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
   };
 
   const fixPowershell = () =>
@@ -512,6 +557,46 @@ export function EnvironmentStep() {
           />
         );
       })}
+      {(isWindows || env?.platform === "macos") && desktopApp !== undefined && (
+        <EnvRow
+          icon={<AppGlyph app="claude-desktop" size={18} />}
+          name={t("setup.env.desktop")}
+          hint={
+            task === "desktop"
+              ? t("setup.env.desktopInstallingHint")
+              : desktopInstalled
+                ? undefined
+                : desktopFailed
+                  ? t("setup.env.desktopFailedHint")
+                  : desktopApp === "legacy"
+                    ? t("setup.env.desktopLegacyHint")
+                    : t("setup.env.desktopHint")
+          }
+          value={desktopInstalled ? t("setup.env.desktopInstalled") : null}
+          // 可选项：没装 / 旧版都只显示空心圈，不标红叉——旧版照样能用，只是提示更新
+          ok={desktopInstalled ? true : null}
+          busy={task === "desktop"}
+          action={
+            !desktopInstalled && (
+              <Button
+                size="compact"
+                variant="neutral"
+                disabled={busy}
+                onClick={() => void installDesktop()}
+              >
+                {spinner(task === "desktop")}
+                {task === "desktop"
+                  ? t("setup.env.installing")
+                  : desktopFailed
+                    ? t("setup.env.download")
+                    : desktopApp === "legacy"
+                      ? t("setup.env.reinstall")
+                      : t("setup.env.install")}
+              </Button>
+            )
+          }
+        />
+      )}
     </StepCard>
   );
 }

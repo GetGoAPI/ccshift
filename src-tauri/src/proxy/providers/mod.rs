@@ -71,6 +71,7 @@ pub use codex::{
     should_convert_codex_responses_to_anthropic, should_convert_codex_responses_to_chat,
     strip_codex_hosted_web_search,
 };
+pub use codex::{codex_provider_uses_anthropic, codex_provider_uses_chat_completions};
 pub use gemini::GeminiAdapter;
 
 /// 供应商类型枚举

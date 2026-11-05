@@ -276,7 +276,40 @@
     "formSubtitleStack": "{{app}}（集約モード）",
     "editCurrentNoticeFile": "使用中のプロバイダーです。保存するとすぐに",
     "editCurrentNoticeFileEnd": " に書き込まれ、次のリクエストから反映されます。",
-    "editCurrentNotice": "使用中のプロバイダーです。保存するとすぐに反映され、次のリクエストから新しい設定が使われます。"
+    "editCurrentNotice": "使用中のプロバイダーです。保存するとすぐに反映され、次のリクエストから新しい設定が使われます。",
+    "iqTest": {
+      "menu": "IQ test (draw a pelican)",
+      "pageIntro": "Sends one real request with the provider's endpoint and key, asking the model for an SVG of a pelican riding a bicycle. Strong models draw something sensible and recognizable; weak or substituted upstreams produce a mess or nothing. Useful for comparing and choosing upstream sources. Uses a little quota. Only shown in advanced mode.",
+      "appLabel": "App",
+      "noProviders": "No providers to test yet",
+      "noProvidersBody": "Add an API-key provider first. Official sign-in and OAuth accounts are not supported.",
+      "promptMode": "Prompt",
+      "modePelican": "Pelican on a bike (classic)",
+      "modeRandom": "Random (anti-gaming)",
+      "modeCustom": "Custom",
+      "reroll": "Another one",
+      "model": "Model to test",
+      "running": "The model is drawing… {{seconds}}s elapsed (usually 20–90s)",
+      "failed": "Test failed",
+      "firstToken": "First token",
+      "total": "Total time",
+      "outputTokens": "Output tokens",
+      "speed": "Speed",
+      "reportedModel": "Model reported by upstream: ",
+      "mismatchTitle": "Reported model differs from the requested one",
+      "mismatchBody": "Requested {{requested}}, but upstream says {{reported}}. This may be a model mapping, or a different model was substituted; judge together with the drawing below.",
+      "truncated": "Output was truncated; the drawing may be incomplete",
+      "noSvg": "No complete SVG found in the reply",
+      "noSvgBody": "Strong models almost always return SVG code directly. The raw reply is shown below.",
+      "howToJudge": "How to judge",
+      "howToJudgeBody": "Strong model: the animal is recognizable (a pelican has a long beak and throat pouch), sits on the seat, feet on pedals, hands on the handlebar, two wheels and a sensible frame. Weak or substituted model: a few stacked circles, the animal floating in mid-air, misplaced wheels, or no drawing at all.",
+      "showRaw": "Show raw reply",
+      "hideRaw": "Hide raw reply",
+      "copySvg": "Copy SVG",
+      "copied": "SVG code copied",
+      "start": "Start test",
+      "retry": "Run again"
+    }
   },
   "claudeCode": {
     "needsRouting": "ルーティングが必要",
@@ -4231,7 +4264,8 @@
     "needsAttention": "対応が必要",
     "back": "戻る",
     "setup": "Quick Setup",
-    "guide": "料金ガイド"
+    "guide": "料金ガイド",
+    "iqTest": "IQテスト"
   },
   "appsPage": {
     "showInSidebar": "{{name}} をサイドバーに表示",

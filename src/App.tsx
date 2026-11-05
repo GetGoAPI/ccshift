@@ -94,6 +94,7 @@ import { RefreshAllQuotaButton } from "@/components/settings/auth/RefreshAllQuot
 import { AppsPage } from "@/components/apps/AppsPage";
 import { QuickSetupPage } from "@/components/setup/QuickSetupPage";
 import { CostGuidePage } from "@/components/guide/CostGuidePage";
+import { IqTestPage, type IqTestTarget } from "@/components/iqtest/IqTestPage";
 import {
   checkToolUpdatesInBackground,
   useToolUpdatesAvailable,
@@ -311,6 +312,7 @@ function App() {
     provider: Provider;
     action: "remove" | "delete";
   } | null>(null);
+  const [iqTestTarget, setIqTestTarget] = useState<IqTestTarget | null>(null);
   const [terminalProvider, setTerminalProvider] = useState<Provider | null>(
     null,
   );
@@ -1521,6 +1523,14 @@ function App() {
       activeApp === "claude" || activeApp === "codex" || activeApp === "agy"
         ? setTerminalProvider
         : undefined,
+    // 智商测试只在高级模式出现（商家自用），新手模式的客户看不到
+    onIqTest:
+      advancedMode && (activeApp === "claude" || activeApp === "codex")
+        ? (provider: Provider) => {
+            setIqTestTarget({ app: activeApp, providerId: provider.id });
+            openPage("iqtest");
+          }
+        : undefined,
     onCreate: () => openAddProvider(currentModeView),
     searchOpen: providerSearchOpen,
     onSearchOpenChange: setProviderSearchOpen,
@@ -1684,6 +1694,8 @@ function App() {
         return <QuickSetupPage onOpenApp={selectApp} />;
       case "guide":
         return <CostGuidePage />;
+      case "iqtest":
+        return <IqTestPage target={iqTestTarget} />;
       case "usage":
         return (
           <UsagePage

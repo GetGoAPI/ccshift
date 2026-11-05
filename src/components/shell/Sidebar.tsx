@@ -17,6 +17,7 @@ import {
   Layers,
   LayoutGrid,
   Lightbulb,
+  Brain,
   Route,
   Server,
   Settings,
@@ -298,6 +299,8 @@ function MainDirectory({
       trailing: todayTrailing,
       trailingLabel: todayText,
     },
+    // 智商测试：商家自己测上游用；不在 SIMPLE_MODE_PAGES 里，新手模式（客户）看不到
+    { page: "iqtest", label: t("nav.iqTest"), icon: Brain },
   ];
   // 新手模式只留快速配置，其余全局页在设置里打开「高级模式」后出现
   const globals = advancedMode

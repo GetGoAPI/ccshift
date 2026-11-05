@@ -39,6 +39,7 @@ import {
   isOfficialAccount,
   resolveCodexOfficialIdentity,
   supportsConnectivityCheck,
+  supportsIqTest,
 } from "@/utils/providerCapabilities";
 import { useProviderHealth } from "@/lib/query/failover";
 import { useUsageQuery } from "@/lib/query/queries";
@@ -67,6 +68,7 @@ interface ProviderCardProps {
   onOpenWebsite: (url: string) => void;
   onDuplicate?: (provider: Provider) => void;
   onTest?: (provider: Provider) => void;
+  onIqTest?: (provider: Provider) => void;
   onOpenTerminal?: (provider: Provider) => void;
   isTesting?: boolean;
   dragHandleProps?: DragHandleProps;
@@ -191,6 +193,7 @@ export function ProviderCard({
   onOpenWebsite,
   onDuplicate,
   onTest,
+  onIqTest,
   onOpenTerminal,
   isTesting,
   dragHandleProps,
@@ -644,6 +647,11 @@ export function ProviderCard({
                 : undefined
             }
             isTesting={isTesting}
+            onIqTest={
+              onIqTest && supportsIqTest(appId, provider)
+                ? () => onIqTest(provider)
+                : undefined
+            }
             onConfigureUsage={
               (isOfficial && !supportsOfficialSubscription) ||
               isCopilot ||

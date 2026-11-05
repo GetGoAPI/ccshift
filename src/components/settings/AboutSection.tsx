@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  Download,
-  Github,
-  Globe,
-  Info,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { Download, Globe, Info, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
@@ -71,10 +64,6 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     return () => {
       active = false;
     };
-  }, []);
-
-  const handleOpenGithub = useCallback(() => {
-    void settingsApi.openExternal("https://github.com/GetGoAPI/ccshift");
   }, []);
 
   const handleCheckUpdate = useCallback(async () => {
@@ -232,19 +221,6 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           </Button>
         </div>
       )}
-
-      {/* 上游是 MIT 协议的 CC Switch：保留出处 */}
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-caption text-fg-3">
-        <span>{t("setup.about.basedOn")}</span>
-        <button
-          type="button"
-          onClick={handleOpenGithub}
-          className="inline-flex items-center gap-1 text-action-text hover:underline"
-        >
-          <Github className="h-3 w-3" />
-          CC Switch (MIT)
-        </button>
-      </div>
     </div>
   );
 }

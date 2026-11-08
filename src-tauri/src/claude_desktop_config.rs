@@ -343,6 +343,63 @@ pub fn legacy_mapping_card(db: &Database) -> Option<Provider> {
         })
 }
 
+/// 旧版 ccshift 快速配置向导给 Claude Desktop 写死的模型菜单（Sonnet 5 / Opus 5 / Haiku 4.5，
+/// 原名直连）。写了菜单 Desktop 就不再向上游查模型，上游上了新模型客户也选不到。
+const LEGACY_WIZARD_MODEL_IDS: [&str; 3] = ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5"];
+
+/// 卡片上是不是旧版向导写的那份菜单、而且没人改过（多一条、少一条、改了显示名或 1M 都不算）。
+/// 是就清掉，返回 `true`。
+fn drop_legacy_wizard_routes(provider: &mut Provider) -> bool {
+    if is_official_provider(provider)
+        || !matches!(provider_mode(provider), ClaudeDesktopMode::Direct)
+    {
+        return false;
+    }
+    let Some(meta) = provider.meta.as_mut() else {
+        return false;
+    };
+    let routes = &meta.claude_desktop_model_routes;
+    let untouched = routes.len() == LEGACY_WIZARD_MODEL_IDS.len()
+        && LEGACY_WIZARD_MODEL_IDS.iter().all(|id| {
+            routes.get(*id).is_some_and(|route| {
+                route.model == *id && route.label_override.is_none() && route.supports_1m.is_none()
+            })
+        });
+    if untouched {
+        meta.claude_desktop_model_routes.clear();
+    }
+    untouched
+}
+
+/// 去掉旧版向导写死的模型菜单：没有菜单时 Desktop 每次启动向上游 `/v1/models` 查模型，新模型
+/// 上线不用再等 ccshift 更新。正在直连生效、Desktop 也正用着 CC Switch profile 的那张卡顺带
+/// 重写 profile（Desktop 下次启动生效，不替客户重启）。返回改了几张卡。
+pub fn drop_legacy_wizard_model_lists(db: &Database) -> Result<usize, AppError> {
+    let app = AppType::ClaudeDesktop;
+    let in_use = if crate::mode::current::is_proxy(&app) {
+        None
+    } else {
+        crate::mode::current::direct_provider(db, &app)?.map(|provider| provider.id)
+    };
+    let profile_applied = current_platform_paths()
+        .ok()
+        .and_then(|paths| read_applied_id(&paths.meta_path))
+        .is_some_and(|id| id == PROFILE_ID);
+
+    let mut changed = 0;
+    for (_, mut provider) in db.get_all_providers(app.as_str())? {
+        if !drop_legacy_wizard_routes(&mut provider) {
+            continue;
+        }
+        db.save_provider(app.as_str(), &provider)?;
+        changed += 1;
+        if profile_applied && in_use.as_deref() == Some(provider.id.as_str()) {
+            apply_provider(db, &provider)?;
+        }
+    }
+    Ok(changed)
+}
+
 pub fn provider_mode(provider: &Provider) -> ClaudeDesktopMode {
     provider
         .meta
@@ -1800,6 +1857,81 @@ mod tests {
             ..Default::default()
         });
         provider
+    }
+
+    fn legacy_wizard_card(id: &str) -> Provider {
+        let mut provider = direct_provider(id);
+        let meta = provider.meta.as_mut().expect("meta");
+        meta.claude_desktop_mode = Some(ClaudeDesktopMode::Direct);
+        for model in LEGACY_WIZARD_MODEL_IDS {
+            meta.claude_desktop_model_routes.insert(
+                model.to_string(),
+                ClaudeDesktopModelRoute {
+                    model: model.to_string(),
+                    label_override: None,
+                    supports_1m: None,
+                },
+            );
+        }
+        provider
+    }
+
+    #[test]
+    fn legacy_wizard_model_list_is_dropped_so_desktop_discovers_models() {
+        let temp = TempDir::new().expect("tempdir");
+        let paths = test_paths(temp.path());
+        let db = test_db();
+        let mut provider = legacy_wizard_card("wizard");
+        apply_provider_to_paths(&db, &provider, &paths).expect("apply legacy");
+        let before = read_json_or_empty(&paths.profile_path).expect("profile");
+        assert!(before.get("inferenceModels").is_some());
+
+        assert!(drop_legacy_wizard_routes(&mut provider));
+        assert!(validate_direct_provider(&provider).is_ok());
+        apply_provider_to_paths(&db, &provider, &paths).expect("apply migrated");
+        let after = read_json_or_empty(&paths.profile_path).expect("profile");
+        assert!(after.get("inferenceModels").is_none(), "{after}");
+        assert_eq!(
+            after["inferenceGatewayBaseUrl"],
+            json!("https://gateway.example.com")
+        );
+        // 清过之后不再命中：每次启动跑也只改一次。
+        assert!(!drop_legacy_wizard_routes(&mut provider));
+    }
+
+    #[test]
+    fn edited_model_lists_are_not_treated_as_the_legacy_wizard_list() {
+        let mut extra = legacy_wizard_card("extra");
+        extra
+            .meta
+            .as_mut()
+            .unwrap()
+            .claude_desktop_model_routes
+            .insert(
+                "claude-opus-5-5".to_string(),
+                ClaudeDesktopModelRoute {
+                    model: "claude-opus-5-5".to_string(),
+                    label_override: None,
+                    supports_1m: None,
+                },
+            );
+        let mut relabeled = legacy_wizard_card("relabeled");
+        relabeled
+            .meta
+            .as_mut()
+            .unwrap()
+            .claude_desktop_model_routes
+            .get_mut("claude-opus-5")
+            .unwrap()
+            .label_override = Some("Opus".to_string());
+        let mut routed = legacy_wizard_card("routed");
+        routed.meta.as_mut().unwrap().claude_desktop_mode = Some(ClaudeDesktopMode::Proxy);
+
+        for mut provider in [extra, relabeled, routed] {
+            let before = provider.meta.clone().unwrap().claude_desktop_model_routes;
+            assert!(!drop_legacy_wizard_routes(&mut provider), "{}", provider.id);
+            assert_eq!(provider.meta.unwrap().claude_desktop_model_routes, before);
+        }
     }
 
     #[test]

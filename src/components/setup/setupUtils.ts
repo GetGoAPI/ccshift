@@ -1,6 +1,5 @@
 import type { Provider } from "@/types";
 import { generateThirdPartyConfig } from "@/config/codexProviderPresets";
-import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
 
 /**
  * 快速配置向导的纯函数：地址规整、按应用生成供应商配置。
@@ -89,13 +88,9 @@ export function buildSetupProvider(
   }
 
   if (app === "claude-desktop") {
-    // 直连：Claude Desktop 把模型菜单里的 Sonnet / Opus / Haiku 原名发给上游，
-    // 只支持 Anthropic 格式接口（和 Claude Code 同一个地址）
-    const routes = [
-      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.sonnet,
-      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.opus,
-      CLAUDE_DESKTOP_ROLE_ROUTE_IDS.haiku,
-    ];
+    // 直连，只支持 Anthropic 格式接口（和 Claude Code 同一个地址）。
+    // 不写模型菜单：没有菜单时 Desktop 每次启动向上游 /v1/models 查，菜单就是上游
+    // 列出的 Claude 模型。上游上了新模型客户直接能选，不用等 ccshift 更新。
     return {
       name: input.name,
       settingsConfig: {
@@ -109,9 +104,6 @@ export function buildSetupProvider(
       meta: {
         claudeDesktopMode: "direct",
         apiFormat: "anthropic",
-        claudeDesktopModelRoutes: Object.fromEntries(
-          routes.map((route) => [route, { model: route }]),
-        ),
       },
     };
   }

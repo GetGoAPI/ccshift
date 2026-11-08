@@ -1374,6 +1374,13 @@ pub fn run() {
                 // 定下各应用的直连 / 代理模式（处理旧版遗留的接管状态），再把代理模式的
                 // 应用接上。要排在通用配置片段的自动提取之后：它读的是直连的 live。
                 crate::mode::controller::startup(&state).await;
+                // ccshift：旧版向导给 Claude Desktop 写死了模型菜单，去掉后由 Desktop 自己向上游
+                // 查，新模型不用等 ccshift 更新。排在模式定下之后：只重写直连生效的那张。
+                match crate::claude_desktop_config::drop_legacy_wizard_model_lists(&state.db) {
+                    Ok(0) => {}
+                    Ok(count) => log::info!("✓ 去掉了 {count} 张 Claude Desktop 卡写死的模型菜单"),
+                    Err(e) => log::warn!("去掉 Claude Desktop 写死的模型菜单失败: {e}"),
+                }
                 // #8268 测试版给 agy 装过包装脚本、改过 shell 启动文件，撤掉带标记的部分。
                 if let Err(e) =
                     crate::services::provider::agy_direct::migrate_legacy_launcher(&state.db)

@@ -88,6 +88,19 @@ describe("快速配置：生成供应商", () => {
     expect(config).toContain('wire_api = "responses"');
     expect(config).toContain("requires_openai_auth = true");
   });
+
+  it("Claude Desktop 直连，不写模型菜单（交给 Desktop 向上游查）", () => {
+    const provider = buildSetupProvider("claude-desktop", input);
+    expect(provider.settingsConfig).toEqual({
+      env: {
+        ANTHROPIC_BASE_URL: "https://api.demo.com",
+        ANTHROPIC_AUTH_TOKEN: "sk-test",
+      },
+    });
+    expect(provider.meta?.claudeDesktopMode).toBe("direct");
+    expect(provider.meta?.apiFormat).toBe("anthropic");
+    expect(provider.meta).not.toHaveProperty("claudeDesktopModelRoutes");
+  });
 });
 
 describe("快速配置：模型过滤", () => {
